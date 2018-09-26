@@ -39,6 +39,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'django_celery_results',
+    'django_celery_beat',
     'channels',
     'app',
     'api'
@@ -133,7 +135,7 @@ USE_I18N = True
 
 USE_L10N = True
 
-USE_TZ = False
+USE_TZ = True
 
 
 # Static files (CSS, JavaScript, Images)
@@ -190,6 +192,17 @@ REST_FRAMEWORK = {
         },
     'HTML_SELECT_CUTOFF': 2000,
 }
+
+
+# CELERY STUFF
+CELERY_RESULT_BACKEND = 'django-db'
+CELERY_BROKER_URL = 'redis://localhost:6379/1'
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Asia/Shanghai'
+CELERYD_CONCURRENCY = 20  # 并发worker数
+CELERY_TASK_RESULT_EXPIRES = 60 * 60 * 24 * 7  # celery任务执行结果的超时时间
+CELERYD_MAX_TASKS_PER_CHILD = 200  # 每个worker执行了多少任务就会死掉
 
 
 # logging

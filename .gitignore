@@ -105,3 +105,4 @@ venv.bak/
 
 # user define
 .idea/
+*migrations*
