@@ -1,0 +1,12 @@
+---
+
+- name: Test the plabybook API.
+  hosts: "{{ host_list }}"
+  gather_facts: false
+  tasks:
+   - name: exec uptime
+     shell: uptime
+
+   - name: exec hostname
+     shell: hostname
+...

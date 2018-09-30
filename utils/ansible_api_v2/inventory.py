@@ -1,0 +1,257 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# @Time    : 2018/9/27 10:08
+# @Author  : Dengsc
+# @Site    : 
+# @File    : inventory.py
+# @Software: PyCharm
+
+
+from collections import Mapping
+from ansible.inventory.manager import InventoryManager
+from ansible.parsing.dataloader import DataLoader
+from ansible.plugins.inventory import BaseInventoryPlugin
+from ansible.errors import AnsibleError, AnsibleParserError
+from ansible.module_utils.six import iteritems, string_types
+from ansible.module_utils._text import to_native
+
+
+__all__ = ['myInventory']
+
+HOSTS_PATTERNS_CACHE = {}
+
+
+class MyInventory(InventoryManager):
+    """
+    this is my ansible inventory object.
+    support:
+        - '1.1.1.1, 2.2.2.2', '1.1.1.1'
+        - ['1.1.1.1', '2.2.2.2'],  {'1.1.1.1', '2.2.2.2'}
+        - {
+            'group1': {
+                'hosts': [{'hostname': '10.10.10.10', 'port': '22',
+                            'username': 'test', 'password': 'mypass'}, ...]
+                'vars': {'var1': value1, 'var2': value2, ...}
+            }
+        }
+    """
+    def __init__(self, hosts_list=None):
+        self.loader = DataLoader()
+        super(MyInventory, self).__init__(self.loader, hosts_list)
+
+    def _setup_inventory_plugins(self):
+        self._inventory_plugins = [InventoryStringPlugin(),
+                                   InventoryListPlugin(),
+                                   InventoryDictPlugin()]
+
+    def parse_sources(self, cache=False):
+
+        self._setup_inventory_plugins()
+
+        parsed = self.parse_source(self._sources)
+        if parsed:
+            self._inventory.reconcile_inventory()
+
+        self._inventory_plugins = []
+
+    def parse_source(self, source, cache=False):
+
+        parsed = False
+
+        if not self._inventory_plugins:
+            self._setup_inventory_plugins()
+
+        for plugin in self._inventory_plugins:
+            if plugin.verify_file(source):
+                try:
+                    plugin.parse(self._inventory, self._loader, source)
+                    parsed = True
+                    break
+                except:
+                    pass
+        else:
+            raise AnsibleParserError('No plugin could parse your data.')
+
+        return parsed
+
+
+class InventoryStringPlugin(BaseInventoryPlugin):
+    """
+    string
+    """
+
+    NAME = 'host_string'
+    _load_name = NAME
+    _original_path = ''
+
+    def verify_file(self, host_string):
+        return isinstance(host_string, string_types)
+
+    def parse(self, inventory, loader, host_string, cache=None):
+        super(InventoryStringPlugin, self).parse(inventory, loader, host_string)
+        try:
+            if ',' in host_string:
+                host_string = [h.strip() for h in host_string.split(',')
+                               if h and h.strip()]
+            else:
+                host_string = [host_string]
+
+            for h in host_string:
+                if h not in self.inventory.hosts:
+                    self.inventory.add_host(h, group='ungrouped')
+        except Exception as e:
+            raise AnsibleParserError('Invalid data from string, '
+                                     'could not parse: %s' % to_native(e))
+
+
+class InventoryListPlugin(BaseInventoryPlugin):
+    """
+    list
+    """
+
+    NAME = 'host_list'
+    _load_name = NAME
+    _original_path = ''
+
+    def verify_file(self, hosts_list):
+        return isinstance(hosts_list, (list, set))
+
+    def parse(self, inventory, loader, hosts_list, cache=None):
+        super(InventoryListPlugin, self).parse(inventory, loader, hosts_list)
+        try:
+            for h in hosts_list:
+                if h not in self.inventory.hosts:
+                    self.inventory.add_host(h, group='ungrouped')
+        except Exception as e:
+            raise AnsibleParserError('Invalid data from sequnes, '
+                                     'could not parse: %s' % to_native(e))
+
+
+class InventoryDictPlugin(BaseInventoryPlugin):
+    """
+    Host inventory parser for ansible using Dict data. as inventory scripts.
+    """
+    NAME = 'host_dict'
+    _load_name = NAME
+    _original_path = ''
+
+    def __init__(self):
+        super(InventoryDictPlugin, self).__init__()
+        self._hosts = set()
+
+    def verify_file(self, sources):
+        return isinstance(sources, Mapping)
+
+    def parse(self, inventory, loader, sources, cache=None):
+        super(InventoryDictPlugin, self).parse(inventory, loader, sources)
+
+        data_from_meta = {}
+
+        try:
+            for group, gdata in sources.iteritems():
+                if group == '_meta':
+                    if 'hostvars' in gdata:
+                        data_from_meta = gdata['hostvars']
+                else:
+                    self._parse_group(group, gdata)
+
+            for host in self._hosts:
+                got = {}
+                if data_from_meta:
+                    got = data_from_meta.get(host, {})
+
+                self._set_host_vars([host], got)
+
+        except Exception as e:
+            raise AnsibleParserError(to_native(e))
+
+    def _set_host_vars(self, *args, **kwargs):
+        if hasattr(self, 'populate_host_vars'):
+            self.populate_host_vars(*args, **kwargs)
+        elif hasattr(self, '_populate_host_vars'):
+            self._populate_host_vars(*args, **kwargs)
+        else:
+            raise Exception('Have no host vars set function.')
+
+    def _parse_group(self, group, data):
+
+        self.inventory.add_group(group)
+
+        if not isinstance(data, dict):
+            data = {'hosts': data}
+        elif not any(k in data for k in ('hosts', 'vars', 'children')):
+            data = {'hosts': [group], 'vars': data}
+
+        if 'hosts' in data:
+            if not isinstance(data['hosts'], list):
+                raise AnsibleError('You defined a group \'%s\' '
+                                   'with bad data for the host list:\n %s'
+                                   % (group, data))
+
+            for hostname in data['hosts']:
+                self._hosts.add(hostname)
+                self.inventory.add_host(hostname, group)
+
+        if 'vars' in data:
+            if not isinstance(data['vars'], dict):
+                raise AnsibleError('You defined a group \'%s\' '
+                                   'with bad data for variables:\n %s'
+                                   % (group, data))
+
+            for k, v in iteritems(data['vars']):
+                self.inventory.set_variable(group, k, v)
+
+        if group != '_meta' and isinstance(data, dict) and 'children' in data:
+            for child_name in data['children']:
+                self.inventory.add_group(child_name)
+                self.inventory.add_child(group, child_name)
+
+
+if __name__ == '__main__':
+    host_list = {
+        'group1': ['1.1.1.1'],
+        'group2': {
+            'hosts': ['2.2.2.2'],
+            'vars': {'var2': 'var_value2'}
+        },
+        '3.3.3.3':
+            {
+                'ansible_ssh_host': '3.3.3.3',
+                '3vars': '3value'
+            },
+        '_meta': {
+            'hostvars':
+                {
+                    '1.1.1.1': {'var1': 'value1'},
+                    '2.2.2.2': {'h2': 'v2'},
+                    '3.3.3.3': {'h3': 'v3'},
+                  }
+        }
+    }
+
+    host_list1 = '1.1.1.1'
+    host_list2 = ['1.1.1.1', '2.2.2.2']
+
+    hosts_source = host_list
+    myhosts = MyInventory(hosts_source)
+
+    print('groups:', myhosts.list_groups())
+    print('all.child_groups:', myhosts.groups['all'].child_groups)
+    print('all:', myhosts.list_hosts('all'))
+    print('*:', myhosts.list_hosts('*'))
+
+    print('all group hosts:', myhosts.groups['all'].get_hosts())
+    print('pattern_cache:', myhosts._pattern_cache)
+
+    if isinstance(hosts_source, dict):
+        print('group1:', myhosts.list_hosts('group1'))
+        print('group2:', myhosts.list_hosts('group2'))
+
+        print(myhosts.groups['group1'].vars)
+
+        print(myhosts.groups['group2'].vars)
+
+        print(myhosts.groups['3.3.3.3'].vars)
+        print(myhosts.hosts['1.1.1.1'].vars)
+        print(myhosts.hosts['2.2.2.2'].vars)
+        print(myhosts.hosts['3.3.3.3'].vars)

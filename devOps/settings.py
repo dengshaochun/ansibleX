@@ -154,13 +154,22 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 MEDIA_URL = '/media/'  # 这个是在浏览器上访问该上传文件的url的前缀
 
 
+# Redis
+REDIS_CONFIG = {
+    'host': 'localhost',
+    'port': 6379,
+    'db': 1,
+    'password': None
+}
+
+
 # channels
 ASGI_APPLICATION = 'devOps.routing.application'
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            'hosts': [('127.0.0.1', 6379)],
+            'hosts': [(REDIS_CONFIG.get('host'), REDIS_CONFIG.get('port'))],
         },
     },
 }
@@ -196,7 +205,8 @@ REST_FRAMEWORK = {
 
 # CELERY STUFF
 CELERY_RESULT_BACKEND = 'django-db'
-CELERY_BROKER_URL = 'redis://localhost:6379/1'
+CELERY_BROKER_URL = 'redis://{0}:{1}/1'.format(REDIS_CONFIG.get('host'),
+                                               REDIS_CONFIG.get('port'))
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Asia/Shanghai'
