@@ -7,6 +7,8 @@
 # @Software: PyCharm
 
 
+import json
+
 from ansible import constants as C
 from ansible.utils.color import colorize, hostcolor
 from ansible.plugins.callback import CallbackBase
@@ -15,10 +17,82 @@ from ansible.plugins.callback.default import \
 from ansible.playbook.task_include import TaskInclude
 
 
+class CommandResultCallback(CallbackBase):
+    """
+    Command result Callback
+    """
+
+    CALLBACK_VERSION = 2.0
+    CALLBACK_TYPE = 'stdout'
+    CALLBACK_NAME = 'default'
+
+    def __init__(self, display=None):
+        self.result_q = dict(contacted={}, dark={})
+        super(CommandResultCallback, self).__init__(display)
+
+    def gather_result(self, n, res):
+        self.result_q[n].update({res._host.name: res._result})
+
+    def v2_runner_on_ok(self, result):
+        self.gather_result('contacted', result)
+
+        for remove_key in ('invocation', '_ansible_parsed',
+                           '_ansible_no_log', 'diff'):
+            if remove_key in result._result:
+                del result._result[remove_key]
+
+        rc = result._result.get('rc')
+        if rc is not None and result._result.get('stdout'):
+            msg = "{host} | SUCCESS | rc={rc} >> \n{stdout}".format(
+                host=result._host.get_name(),
+                rc=rc,
+                stdout=result._result.get('stdout'))
+        else:
+            msg = "{host} | SUCCESS >> \n{stdout}".format(
+                host=result._host.get_name(),
+                stdout=json.dumps(result._result, indent=4))
+        self._display.display(msg, color=C.COLOR_OK)
+
+    def v2_runner_on_failed(self, result, ignore_errors=False):
+        self.gather_result('dark', result)
+
+        for remove_key in ('invocation', ):
+            if remove_key in result._result:
+                del result._result[remove_key]
+
+        rc = result._result.get('rc')
+        if rc is not None and result._result.get('stderr'):
+            msg = "{host} | FAILED | rc={rc} >> \n{stdout}".format(
+                host=result._host.get_name(),
+                rc=result._result.get('rc'),
+                stdout=result._result.get('stderr'))
+        else:
+            msg = "{host} | FAILED! >> {stdout}".format(
+                host=result._host.get_name(),
+                stdout=json.dumps(result._result, indent=4))
+        self._display.display(msg, color=C.COLOR_ERROR)
+
+    def v2_runner_on_unreachable(self, result):
+        self.gather_result('dark', result)
+
+        for remove_key in ('invocation', ):
+            if remove_key in result._result:
+                del result._result[remove_key]
+
+        msg = "{host} | UNREACHABLE! => {stdout}".format(
+            host=result._host.get_name(),
+            stdout=json.dumps(result._result, indent=4))
+        self._display.display(msg, color=C.COLOR_ERROR)
+
+
 class AdHocResultCallback(CallbackBase):
     """
     AdHoc result Callback
     """
+
+    CALLBACK_VERSION = 2.0
+    CALLBACK_TYPE = 'stdout'
+    CALLBACK_NAME = 'default'
 
     def __init__(self, display=None):
         self.result_q = dict(contacted={}, dark={})
@@ -162,7 +236,7 @@ class PlaybookResultCallBack(playbook_CallBackBase):
         }
 
     def _print_task_banner(self, task):
-        # copy from default callback
+        # copy from default
         args = ''
         if not task.no_log and C.DISPLAY_ARGS_TO_STDOUT:
             args = u', '.join(u'%s=%s' % a for a in task.args.items())
@@ -425,7 +499,9 @@ class PlaybookResultCallBack(playbook_CallBackBase):
         if self._plugin_options.get('show_skipped_hosts',
                                     C.DISPLAY_SKIPPED_HOSTS):
             self._clean_results(result._result, result._task.action)
-            msg = "skipping: [%s] => (item=%s) " % (result._host.get_name(), self._get_item_label(result._result))
+            msg = "skipping: [%s] => (item=%s) " % (
+                result._host.get_name(),
+                self._get_item_label(result._result))
             if (self._display.verbosity > 0
                 or '_ansible_verbose_always' in result._result) \
                     and '_ansible_verbose_override' not in result._result:

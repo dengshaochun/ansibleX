@@ -14,6 +14,8 @@ import time
 
 from celery import shared_task
 from utils.ansible_api_v2.runner import AdHocRunner, PlaybookRunner
+from utils.ansible_api_v2.callback import CommandResultCallback
+from utils.ansible_api_v2.display import MyDisplay
 from devOps.settings import BASE_DIR
 import os
 
@@ -34,16 +36,32 @@ def xsum(numbers):
 
 
 @shared_task
-def test_ansible(log_id='ad_hoc_{}'.format(str(time.time() * 1000))):
+def test_command(command, command_args,
+                 log_id='command_{}'.format(str(time.time() * 1000))):
+    log_path = os.path.join(BASE_DIR, 'logs', 'ansible', log_id)
+    runner = AdHocRunner(
+        module_name=command,
+        module_args=command_args,
+        remote_user='dengsc',
+        hosts=['localhost', 'test02'],
+        log_path=log_path,
+        log_id=log_id,
+        callback='command'
+    )
+    return runner.run()
 
-    print(os.path.join(BASE_DIR, 'logs', 'ansible', log_id))
+
+@shared_task
+def test_ad_hoc(command, command_args,
+                log_id='ad_hoc_{}'.format(str(time.time() * 1000))):
 
     runner = AdHocRunner(
-        module_name='shell',
-        module_args='uptime',
+        module_name=command,
+        module_args=command_args,
         remote_user='dengsc',
-        hosts='localhost',
-        log_path=os.path.join(BASE_DIR, 'logs', 'ansible', log_id)
+        hosts=['localhost', 'test02'],
+        log_path=os.path.join(BASE_DIR, 'logs', 'ansible', log_id),
+        log_id=log_id,
     )
     return runner.run()
 
@@ -55,6 +73,7 @@ def test_playbook(log_id='playbook_{}'.format(str(time.time() * 1000))):
         hosts='localhost',
         remote_user='dengsc',
         log_path=os.path.join(BASE_DIR, 'logs', 'ansible', log_id),
+        log_id=log_id,
         roles_path=None,
         extra_vars=[{'host_list': 'all'}, ]
     )

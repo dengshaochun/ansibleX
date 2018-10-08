@@ -20,7 +20,9 @@ from ansible.errors import AnsibleError
 from utils.ansible_api_v2.inventory import MyInventory
 from utils.ansible_api_v2.executor import MyPlaybookExecutor, MyTaskQueueManager
 from utils.ansible_api_v2.callback import (PlaybookResultCallBack,
-                                           AdHocResultCallback)
+                                           AdHocResultCallback,
+                                           CommandResultCallback)
+from utils.ansible_api_v2.display import MyDisplay
 
 
 __all__ = ['AdHocRunner', 'PlayBookRunner']
@@ -37,7 +39,7 @@ class PlaybookRunner(object):
         'module_path', 'forks', 'remote_user', 'private_key_file', 'timeout',
         'ssh_common_args', 'ssh_extra_args', 'sftp_extra_args',
         'scp_extra_args', 'become', 'become_method', 'become_user',
-        'verbosity', 'check', 'extra_vars', 'diff', 'roles_path', 'log_path'])
+        'verbosity', 'check', 'extra_vars', 'diff', 'roles_path'])
 
     def __init__(
         self,
@@ -66,10 +68,12 @@ class PlaybookRunner(object):
         check=False,
         roles_path=None,
         log_path=None,
+        log_id=None,
     ):
 
         C.RETRY_FILES_ENABLED = False
-        self.callbackmodule = PlaybookResultCallBack()
+        display = MyDisplay(log_id=log_id, log_path=log_path)
+        self.callback_module = PlaybookResultCallBack(display=display)
         if playbook_path is None or not os.path.exists(playbook_path):
             raise AnsibleError(
                 'Not Found the playbook file: %s.' % playbook_path)
@@ -101,8 +105,7 @@ class PlaybookRunner(object):
             extra_vars=extra_vars or [],
             check=check,
             diff=False,
-            roles_path=roles_path,
-            log_path=log_path
+            roles_path=roles_path
         )
 
         self.variable_manager.extra_vars = load_extra_vars(loader=self.loader,
@@ -119,7 +122,7 @@ class PlaybookRunner(object):
             passwords=self.passwords,
         )
         if self.runner._tqm:
-            self.runner._tqm._stdout_callback = self.callbackmodule
+            self.runner._tqm._stdout_callback = self.callback_module
 
     def run(self):
         if not self.inventory.list_hosts('all'):
@@ -127,15 +130,15 @@ class PlaybookRunner(object):
 
         self.runner.run()
         self.runner._tqm.cleanup()
-        if isinstance(self.callbackmodule.output, str):
-            raise AnsibleError(self.callbackmodule.output)
-        elif isinstance(self.callbackmodule.output, dict):
-            stats = self.callbackmodule.output.get('stats')
+        if isinstance(self.callback_module.output, str):
+            raise AnsibleError(self.callback_module.output)
+        elif isinstance(self.callback_module.output, dict):
+            stats = self.callback_module.output.get('stats')
             if stats and isinstance(stats, dict):
                 for k, v in stats.items():
                     if v and v.get('failures') > 0 or v.get('unreachable') > 0:
-                        raise AnsibleError(self.callbackmodule.output)
-        return self.callbackmodule.output
+                        raise AnsibleError(self.callback_module.output)
+        return self.callback_module.output
 
 
 class AdHocRunner(object):
@@ -143,7 +146,7 @@ class AdHocRunner(object):
     Options = namedtuple('Options', [
         'connection', 'module_path', 'private_key_file', 'remote_user',
         'timeout', 'forks', 'become', 'become_method', 'become_user', 'check',
-        'extra_vars', 'diff', 'log_path'
+        'extra_vars', 'diff'
     ])
 
     def __init__(
@@ -165,6 +168,8 @@ class AdHocRunner(object):
             extra_vars=None,
             private_key_file=None,
             log_path=None,
+            log_id=None,
+            callback='default'
     ):
 
         # storage & defaults
@@ -174,7 +179,11 @@ class AdHocRunner(object):
         self.module_args = module_args
         self.check_module_args()
         self.gather_facts = 'no'
-        self.resultcallback = AdHocResultCallback()
+        display = MyDisplay(log_id=log_id, log_path=log_path)
+        if callback == 'command':
+            self.callback_module = CommandResultCallback(display=display)
+        else:
+            self.callback_module = AdHocResultCallback(display=display)
         self.options = self.Options(
             connection=connection_type,
             timeout=timeout,
@@ -187,8 +196,7 @@ class AdHocRunner(object):
             remote_user=remote_user,
             extra_vars=extra_vars or [],
             private_key_file=private_key_file,
-            diff=False,
-            log_path=log_path
+            diff=False
         )
 
         self.inventory = MyInventory(hosts_list=hosts)
@@ -217,7 +225,7 @@ class AdHocRunner(object):
             loader=self.loader,
             options=self.options,
             passwords=self.passwords,
-            stdout_callback=self.resultcallback
+            stdout_callback=self.callback_module
         )
 
         # ** end __init__() **
@@ -238,13 +246,13 @@ class AdHocRunner(object):
             if self.loader:
                 self.loader.cleanup_all_tmp_files()
 
-        if isinstance(self.resultcallback.result_q, str):
-            raise AnsibleError(self.resultcallback.result_q)
-        elif isinstance(self.resultcallback.result_q, dict):
-            if len(self.resultcallback.result_q.get('dark')) > 0:
-                raise AnsibleError(self.resultcallback.result_q)
+        if isinstance(self.callback_module.result_q, str):
+            raise AnsibleError(self.callback_module.result_q)
+        elif isinstance(self.callback_module.result_q, dict):
+            if len(self.callback_module.result_q.get('dark')) > 0:
+                raise AnsibleError(self.callback_module.result_q)
 
-        return self.resultcallback.result_q
+        return self.callback_module.result_q
 
     def check_module_args(self):
         if self.module_name in C.MODULE_REQUIRE_ARGS and not self.module_args:
