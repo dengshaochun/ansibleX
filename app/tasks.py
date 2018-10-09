@@ -14,8 +14,6 @@ import time
 
 from celery import shared_task
 from utils.ansible_api_v2.runner import AdHocRunner, PlaybookRunner
-from utils.ansible_api_v2.callback import CommandResultCallback
-from utils.ansible_api_v2.display import MyDisplay
 from devOps.settings import BASE_DIR
 import os
 
