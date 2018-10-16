@@ -20,8 +20,7 @@ from ansible.errors import AnsibleError
 from utils.ansible_api_v2.inventory import MyInventory
 from utils.ansible_api_v2.executor import MyPlaybookExecutor, MyTaskQueueManager
 from utils.ansible_api_v2.callback import (PlaybookResultCallBack,
-                                           AdHocResultCallback,
-                                           CommandResultCallback)
+                                           AdHocResultCallback)
 from utils.ansible_api_v2.display import MyDisplay
 
 
@@ -168,8 +167,7 @@ class AdHocRunner(object):
             extra_vars=None,
             private_key_file=None,
             log_path=None,
-            log_id=None,
-            callback='default'
+            log_id=None
     ):
 
         # storage & defaults
@@ -180,10 +178,7 @@ class AdHocRunner(object):
         self.check_module_args()
         self.gather_facts = 'no'
         display = MyDisplay(log_id=log_id, log_path=log_path)
-        if callback == 'command':
-            self.callback_module = CommandResultCallback(display=display)
-        else:
-            self.callback_module = AdHocResultCallback(display=display)
+        self.callback_module = AdHocResultCallback(display=display)
         self.options = self.Options(
             connection=connection_type,
             timeout=timeout,

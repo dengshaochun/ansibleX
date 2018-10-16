@@ -33,7 +33,7 @@ class MyDisplay(Display):
 
         super(MyDisplay, self).__init__(verbosity)
 
-    def _write_disk(self, msg, level='INFO'):
+    def _write_log(self, msg, level='INFO'):
         if self.log_path and (
             os.path.exists(self.log_path)
                 and os.access(self.log_path, os.W_OK)) \
@@ -86,6 +86,6 @@ class MyDisplay(Display):
                 msg2 = to_text(msg2, self._output_encoding(stderr=stderr))
 
             if color == C.COLOR_ERROR:
-                self._write_disk(msg=msg2, level='ERROR')
+                self._write_log(msg=msg2, level='ERROR')
             else:
-                self._write_disk(msg=msg2, level='INFO')
+                self._write_log(msg=msg2, level='INFO')

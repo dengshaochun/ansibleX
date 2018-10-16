@@ -34,22 +34,6 @@ def xsum(numbers):
 
 
 @shared_task
-def test_command(command, command_args,
-                 log_id='command_{}'.format(str(time.time() * 1000))):
-    log_path = os.path.join(BASE_DIR, 'logs', 'ansible', log_id)
-    runner = AdHocRunner(
-        module_name=command,
-        module_args=command_args,
-        remote_user='dengsc',
-        hosts=['localhost', 'test02'],
-        log_path=log_path,
-        log_id=log_id,
-        callback='command'
-    )
-    return runner.run()
-
-
-@shared_task
 def test_ad_hoc(command, command_args,
                 log_id='ad_hoc_{}'.format(str(time.time() * 1000))):
 
