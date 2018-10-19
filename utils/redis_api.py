@@ -9,7 +9,7 @@
 
 import redis
 import logging
-from devOps.settings import REDIS_CONFIG
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ class RedisQueue(object):
         """The default connection parameters are: 
         host='localhost', port=6379, db=0"""
 
-        self.__db = redis.Redis(**REDIS_CONFIG)
+        self.__db = redis.Redis(**settings.REDIS_CONFIG)
         self.key = '%s:%s' % (namespace, name)
 
     def qsize(self):

@@ -4,37 +4,26 @@ from django.shortcuts import render
 
 import logging
 from rest_framework import viewsets
-from app.models import Book, Category, UserBook, UserProfile, Tag
-from api.serializers import (BookSerializer, CategorySerializer, TagSerializer,
-                             UserProfileSerializer, UserBookSerializer)
+from assets.models import Asset, AssetGroup, SystemUser
+from api.serializers import (AssetGroupSerializer, AssetSerializer,
+                             SystemUserSerializer)
 
 logger = logging.getLogger(__name__)
 
 
-class BookViewSet(viewsets.ModelViewSet):
+class AssetViewSet(viewsets.ModelViewSet):
 
-    queryset = Book.objects.all()
-    serializer_class = BookSerializer
-
-
-class CategoryViewSet(viewsets.ModelViewSet):
-
-    queryset = Category.objects.all()
-    serializer_class = CategorySerializer
+    queryset = Asset.objects.all()
+    serializer_class = AssetSerializer
 
 
-class TagViewSet(viewsets.ModelViewSet):
+class AssetGroupViewSet(viewsets.ModelViewSet):
 
-    queryset = Tag.objects.all()
-    serializer_class = TagSerializer
-
-
-class UserProfileViewSet(viewsets.ModelViewSet):
-
-    queryset = UserProfile.objects.all()
-    serializer_class = UserProfileSerializer
+    queryset = AssetGroup.objects.all()
+    serializer_class = AssetGroupSerializer
 
 
-class UserBookViewSet(viewsets.ModelViewSet):
-    queryset = UserBook.objects.all()
-    serializer_class = UserBookSerializer
+class SystemUserViewSet(viewsets.ModelViewSet):
+
+    queryset = SystemUser.objects.all()
+    serializer_class = SystemUserSerializer

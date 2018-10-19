@@ -14,11 +14,9 @@ from api import views
 
 # Create a router and register our viewsets with it.
 router = DefaultRouter()
-router.register(r'books', views.BookViewSet)
-router.register(r'categories', views.CategoryViewSet)
-router.register(r'tags', views.TagViewSet)
-router.register(r'userProfiles', views.UserProfileViewSet)
-router.register(r'userBooks', views.UserBookViewSet)
+router.register(r'assets', views.AssetViewSet)
+router.register(r'asset_groups', views.AssetGroupViewSet)
+router.register(r'system_users', views.SystemUserViewSet)
 
 # The API URLs are now determined automatically by the router.
 urlpatterns = [

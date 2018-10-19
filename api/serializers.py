@@ -8,51 +8,34 @@
 
 
 from rest_framework import serializers
-from app.models import Book, Category, UserProfile, UserBook, Tag
+from assets.models import Asset, AssetGroup, SystemUser
 
 
-class BookSerializer(serializers.ModelSerializer):
-    category = serializers.SlugRelatedField(slug_field='name',
-                                            queryset=Category.objects.all())
-    tags = serializers.SlugRelatedField(slug_field='name',
-                                        queryset=Tag.objects.all(),
-                                        many=True)
-
-    class Meta:
-        model = Book
-        fields = ('id', 'name', 'category', 'tags')
-
-
-class CategorySerializer(serializers.ModelSerializer):
+class AssetSerializer(serializers.ModelSerializer):
+    system_user = serializers.SlugRelatedField(
+        slug_field='name',
+        queryset=SystemUser.objects.all())
+    asset_group = serializers.SlugRelatedField(
+        slug_field='name',
+        queryset=AssetGroup.objects.all(),
+        many=True)
 
     class Meta:
-        model = Category
+        model = Asset
         fields = '__all__'
 
 
-class TagSerializer(serializers.ModelSerializer):
+class AssetGroupSerializer(serializers.ModelSerializer):
+    asset_set = serializers.StringRelatedField(many=True, read_only=True)
 
     class Meta:
-        model = Tag
+        model = AssetGroup
         fields = '__all__'
 
 
-class UserProfileSerializer(serializers.ModelSerializer):
-    account_type = serializers.ChoiceField(choices=UserProfile.ACCOUNT_CHOICES)
-    books = serializers.SlugRelatedField(slug_field='name', many=True,
-                                         read_only=True)
+class SystemUserSerializer(serializers.ModelSerializer):
+    asset_set = serializers.StringRelatedField(many=True, read_only=True)
 
     class Meta:
-        model = UserProfile
+        model = SystemUser
         fields = '__all__'
-
-
-class UserBookSerializer(serializers.ModelSerializer):
-    user = serializers.SlugRelatedField(slug_field='username',
-                                        queryset=UserProfile.objects.all())
-    book = serializers.SlugRelatedField(slug_field='name',
-                                        queryset=Book.objects.all())
-
-    class Meta:
-        model = UserBook
-        fields = ('id', 'user', 'book')

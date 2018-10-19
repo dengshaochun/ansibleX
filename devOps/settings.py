@@ -43,6 +43,9 @@ INSTALLED_APPS = [
     'django_celery_beat',
     'channels',
     'app',
+    'assets',
+    'accounts',
+    'ops',
     'api'
 ]
 
@@ -214,6 +217,13 @@ CELERYD_CONCURRENCY = 20  # 并发worker数
 CELERY_TASK_RESULT_EXPIRES = 60 * 60 * 24 * 7  # celery任务执行结果的超时时间
 CELERYD_MAX_TASKS_PER_CHILD = 200  # 每个worker执行了多少任务就会死掉
 
+
+# AES
+AES_SECRET_KEY = SECRET_KEY[:16]
+
+# Ansible task end prefix
+ANSIBLE_TASK_START_PREFIX = '>> Start <<'
+ANSIBLE_TASK_END_PREFIX = '>> All done <<'
 
 # logging
 LOGGING = {
