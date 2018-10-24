@@ -86,8 +86,8 @@ class SystemUser(models.Model):
     name = models.CharField(_('ssh user'),
                             max_length=30,
                             unique=True)
-    _password = models.CharField(_('ssh user password'),
-                                 max_length=100)
+    password = models.CharField(_('ssh user password'),
+                                max_length=100)
     owner = models.ForeignKey(User,
                               verbose_name=_('owner'),
                               on_delete=models.SET_NULL,
@@ -96,16 +96,11 @@ class SystemUser(models.Model):
     create_time = models.DateTimeField(auto_now_add=True,
                                        verbose_name=_('create time'))
 
-    @property
-    def password(self):
-        return self._password
-
-    @password.setter
-    def password(self, value):
-        self._password = PrpCrypt().encrypt(value)
+    def get_real_password(self):
+        return PrpCrypt().decrypt(self.password)
 
     def save(self, *args, **kwargs):
-        self._password = PrpCrypt().encrypt(self._password)
+        self.password = PrpCrypt().encrypt(self.password)
         super(SystemUser, self).save(*args, **kwargs)
 
     def __str__(self):

@@ -42,7 +42,7 @@ class UserProfile(models.Model):
 
 class UserGroup(models.Model):
 
-    name = models.CharField(_('asset group name'),
+    name = models.CharField(_('account group name'),
                             max_length=100,
                             unique=True)
     create_time = models.DateTimeField(auto_now_add=True,

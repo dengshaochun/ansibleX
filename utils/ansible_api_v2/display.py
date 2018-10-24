@@ -30,8 +30,14 @@ class MyDisplay(Display):
         self.log_id = log_id
         self.redis = None
         self._set_redis()
+        self._check_base_log_dir()
 
         super(MyDisplay, self).__init__(verbosity)
+
+    def _check_base_log_dir(self):
+        base_log_dir = os.path.dirname(self.log_path)
+        if not os.path.exists(base_log_dir):
+            os.makedirs(base_log_dir)
 
     def _write_log(self, msg, level='INFO'):
         if self.log_path and (

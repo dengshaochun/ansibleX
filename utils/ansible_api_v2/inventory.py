@@ -80,10 +80,6 @@ class InventoryStringPlugin(BaseInventoryPlugin):
     string
     """
 
-    NAME = 'host_string'
-    _load_name = NAME
-    _original_path = ''
-
     def verify_file(self, host_string):
         return isinstance(host_string, string_types)
 
@@ -144,14 +140,13 @@ class InventoryDictPlugin(BaseInventoryPlugin):
 
     def parse(self, inventory, loader, sources, cache=None):
         super(InventoryDictPlugin, self).parse(inventory, loader, sources)
-
         data_from_meta = {}
 
         try:
-            for group, gdata in sources.iteritems():
+            for group, gdata in sources.items():
                 if group == '_meta':
-                    if 'hostvars' in gdata:
-                        data_from_meta = gdata['hostvars']
+                    if 'host_vars' in gdata:
+                        data_from_meta = gdata['host_vars']
                 else:
                     self._parse_group(group, gdata)
 

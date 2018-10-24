@@ -14,6 +14,7 @@ import time
 
 from celery import shared_task
 from utils.ansible_api_v2.runner import AdHocRunner, PlaybookRunner
+from ops.models import Inventory
 from devOps.settings import BASE_DIR
 import os
 
@@ -41,7 +42,7 @@ def test_ad_hoc(command, command_args,
         module_name=command,
         module_args=command_args,
         remote_user='dengsc',
-        hosts=['localhost', 'test02'],
+        hosts=Inventory.objects.first().get_json_inventory(),
         log_path=os.path.join(BASE_DIR, 'logs', 'ansible', log_id),
         log_id=log_id,
     )

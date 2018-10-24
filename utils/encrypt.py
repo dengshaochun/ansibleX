@@ -33,12 +33,11 @@ class PrpCrypt(object):
         elif count > length:
             add = (length - (count % length))
             text = text + ('\0' * add).encode('utf-8')
-        ciphertext = cryptor.encrypt(text)
 
-        return b2a_hex(ciphertext)
+        return bytes.decode(b2a_hex(cryptor.encrypt(text)))
 
     # 解密后，去掉补足的空格用strip() 去掉
     def decrypt(self, text):
         cryptor = AES.new(self.key, self.mode, b'0000000000000000')
-        plain_text = cryptor.decrypt(a2b_hex(text))
+        plain_text = cryptor.decrypt(a2b_hex(bytes(text, encoding='utf-8')))
         return bytes.decode(plain_text).rstrip('\0')
