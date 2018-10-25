@@ -8,13 +8,15 @@
 
 import os
 import time
+import logging
 from celery import shared_task
 from django.conf import settings
 from utils.ansible_api_v2.runner import AdHocRunner, PlaybookRunner
 from ops.models import (Inventory, AnsiblePlayBook, AnsibleScript,
-                        AnsibleRunning, AnsibleScriptLog, AnsiblePlayBookLog,
-                        AnsibleModule)
+                        AnsibleRunning, AnsibleExecLog, AnsibleConfig)
 from utils.redis_api import RedisQueue
+
+logger = logging.getLogger(__name__)
 
 
 def check_ready(obj_type, obj_id):
@@ -23,8 +25,6 @@ def check_ready(obj_type, obj_id):
         obj = AnsibleScript.objects.get(script_id=obj_id)
     elif obj_type == 'playbook':
         obj = AnsiblePlayBook.objects.get(playbook_id=obj_id)
-    elif obj_type == 'command':
-        obj = AnsibleModule.objects.get(module_id=obj_id)
     else:
         raise Exception('Not support type: {0} !'.format(obj_type))
 
@@ -44,66 +44,112 @@ def check_ready(obj_type, obj_id):
 
 
 def release_lock(obj_type, obj_id):
-    redis_conn = RedisQueue(name=obj_id)
-    lock = AnsibleRunning.objects.filter(ansible_type=obj_type,
-                                         running_id=obj_id).first()
-    if lock:
-        lock.delete()
-    redis_conn.put(settings.ANSIBLE_TASK_END_PREFIX)
+    try:
+        redis_conn = RedisQueue(name=obj_id)
+        lock = AnsibleRunning.objects.filter(ansible_type=obj_type,
+                                             running_id=obj_id).first()
+        if lock:
+            lock.delete()
+        redis_conn.put(settings.ANSIBLE_TASK_END_PREFIX)
+    except Exception as e:
+        logger.exception(e)
+
+
+def save_execute_log(log_id, ansible_type, object_id, inventory_id, config_id,
+                     succeed, full_log, user_input):
+
+    try:
+        AnsibleExecLog(
+            log_id=log_id,
+            ansible_type=ansible_type,
+            object_id=object_id,
+            inventory=inventory_id,
+            config_id=config_id,
+            succeed=succeed,
+            full_log=full_log,
+            user_input=user_input,
+        ).save()
+    except Exception as e:
+        logger.exception(e)
 
 
 @shared_task
-def exec_ansible_script(log_id, script_id, inventory_id):
+def exec_ansible_script(log_id, script_id, inventory_id,
+                        config_id, **user_input):
 
     succeed = True
-    script_obj = check_ready('script', script_id)
-    inventory_obj = Inventory.objects.get(inventory_id=inventory_id)
-    log_path = os.path.join(settings.MEDIA_ROOT, 'logs', 'ansible', log_id)
-    extra_vars = [script_obj.get_json_extra_vars(), ] if script_obj.extra_vars else []
-    runner = AdHocRunner(
-        module_name=script_obj.ansible_module.name,
-        module_args=script_obj.args,
-        hosts=inventory_obj.get_json_inventory(),
-        log_path=log_path,
-        log_id=log_id,
-        extra_vars=extra_vars
-    )
+    ansible_type = 'script'
+
     try:
+        script_obj = check_ready(ansible_type, script_id)
+        inventory_obj = Inventory.objects.get(inventory_id=inventory_id)
+        log_path = os.path.join(settings.ANSIBLE_BASE_LOG_DIR, log_id)
+
+        if user_input.get('module_args'):
+            module_args = user_input.get('module_args')
+        else:
+            module_args = script_obj.args
+        extra_vars = script_obj.get_json_extra_vars()
+        if user_input.get('extra_vars'):
+            extra_vars.update(dict(user_input.get('extra_vars')))
+
+        kwargs = AnsibleConfig.objects.get(
+            config_id=config_id).get_json_config()
+        kwargs['extra_vars'] = [extra_vars]
+
+        runner = AdHocRunner(
+            module_name=script_obj.ansible_module.name,
+            module_args=module_args,
+            hosts=inventory_obj.get_json_inventory(),
+            log_path=log_path,
+            log_id=log_id,
+            **kwargs
+        )
         result = runner.run()
     except Exception as e:
         result = {'Error': str(e)}
         succeed = False
     finally:
-        release_lock('script', script_id)
-    AnsibleScriptLog(log_id=log_id, script=script_obj,
-                     inventory=inventory_obj, simple_log=log_path,
-                     full_log=result, succeed=succeed).save()
+        release_lock(ansible_type, script_id)
+    save_execute_log(log_id, ansible_type, script_id,
+                     inventory_id, config_id, succeed, result, user_input)
     return result
 
 
 @shared_task
-def exec_ansible_playbook(log_id, playbook_id, inventory_id):
+def exec_ansible_playbook(log_id, playbook_id, inventory_id,
+                          config_id, **user_input):
 
     succeed = True
-    playbook_obj = check_ready('playbook', playbook_id)
-    inventory_obj = Inventory.objects.get(inventory_id=inventory_id)
-    log_path = os.path.join(settings.MEDIA_ROOT, 'logs', 'ansible', log_id)
-    runner = PlaybookRunner(
-        playbook_path=playbook_obj.file.path,
-        hosts=inventory_obj.get_json_inventory(),
-        log_path=os.path.join(settings.MEDIA_ROOT, 'logs', 'ansible', log_id),
-        log_id=log_id,
-        roles_path=None,
-        extra_vars=[playbook_obj.get_json_extra_vars(), ]
-    )
+    ansible_type = 'playbook'
+
     try:
+        playbook_obj = check_ready(ansible_type, playbook_id)
+        inventory_obj = Inventory.objects.get(inventory_id=inventory_id)
+        log_path = os.path.join(settings.ANSIBLE_BASE_LOG_DIR, log_id)
+
+        extra_vars = playbook_obj.get_json_extra_vars()
+        if user_input.get('extra_vars'):
+            extra_vars.update(dict(user_input.get('extra_vars')))
+
+        kwargs = AnsibleConfig.objects.get(
+            config_id=config_id).get_json_config()
+        kwargs['extra_vars'] = [extra_vars]
+
+        runner = PlaybookRunner(
+            playbook_path=playbook_obj.file_path.path,
+            hosts=inventory_obj.get_json_inventory(),
+            log_path=log_path,
+            log_id=log_id,
+            roles_path=None,
+            **kwargs
+        )
         result = runner.run()
     except Exception as e:
         result = {'Error': str(e)}
         succeed = False
     finally:
-        release_lock('playbook', playbook_id)
-    AnsiblePlayBookLog(log_id=log_id, playbook=playbook_obj,
-                       inventory=inventory_obj, simple_log=log_path,
-                       full_log=result, succeed=succeed).save()
+        release_lock(ansible_type, playbook_id)
+    save_execute_log(log_id, ansible_type, playbook_id,
+                     inventory_id, config_id, succeed, result, user_input)
     return result

@@ -25,7 +25,8 @@ class Asset(models.Model):
                                     blank=True,
                                     null=True)
     asset_tag = models.ManyToManyField('AssetTag',
-                                       verbose_name=_('asset tags'))
+                                       verbose_name=_('asset tags'),
+                                       blank=True, null=True)
     active = models.BooleanField(_('active status'), default=True)
     system_user = models.ForeignKey('SystemUser',
                                     verbose_name=_('system user'),

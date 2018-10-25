@@ -44,32 +44,12 @@ class PlaybookRunner(object):
         self,
         hosts=None,
         playbook_path=None,
-        forks=5,
-        listtags=False,
-        listtasks=False,
-        listhosts=False,
-        syntax=False,
-        module_path=None,
-        remote_user=None,
-        timeout=60,
-        ssh_common_args=None,
-        ssh_extra_args=None,
-        sftp_extra_args=None,
-        scp_extra_args=None,
-        become=False,
-        become_method='sudo',
-        become_user='root',
-        verbosity=None,
-        extra_vars=None,
-        connection_type='ssh',
-        passwords=None,
-        private_key_file=None,
-        check=False,
-        roles_path=None,
         log_path=None,
         log_id=None,
+        **kwargs
     ):
 
+        self.pattern = kwargs.get('pattern', 'all')
         C.RETRY_FILES_ENABLED = False
         display = MyDisplay(log_id=log_id, log_path=log_path)
         self.callback_module = PlaybookResultCallBack(display=display)
@@ -80,31 +60,23 @@ class PlaybookRunner(object):
         self.inventory = MyInventory(hosts_list=hosts)
         self.loader = DataLoader()
         self.variable_manager = VariableManager(self.loader, self.inventory)
-        self.passwords = passwords or {}
+        self.passwords = kwargs.get('passwords', {})
 
         self.options = self.Options(
-            listtags=listtags,
-            listtasks=listtasks,
-            listhosts=listhosts,
-            syntax=syntax,
-            timeout=timeout,
-            connection=connection_type,
-            module_path=module_path,
-            forks=forks,
-            remote_user=remote_user,
-            private_key_file=private_key_file,
-            ssh_common_args=ssh_common_args or '',
-            ssh_extra_args=ssh_extra_args or '',
-            sftp_extra_args=sftp_extra_args,
-            scp_extra_args=scp_extra_args,
-            become=become,
-            become_method=become_method,
-            become_user=become_user,
-            verbosity=verbosity,
-            extra_vars=extra_vars or [],
-            check=check,
-            diff=False,
-            roles_path=roles_path
+            connection=kwargs.get('connection_type', 'smart'),
+            timeout=kwargs.get('timeout', 60),
+            module_path=kwargs.get('module_path', None),
+            forks=kwargs.get('forks', 5),
+            become=kwargs.get('become', False),
+            become_method=kwargs.get('become_method', 'sudo'),
+            become_user=kwargs.get('become_user', None),
+            check=kwargs.get('check', False),
+            remote_user=kwargs.get('remote_user', None),
+            verbosity=kwargs.get('verbosity', None),
+            extra_vars=kwargs.get('extra_vars', []),
+            private_key_file=kwargs.get('private_key_file', None),
+            diff=kwargs.get('diff', False),
+            roles_path=kwargs.get('roles_path', None)
         )
 
         self.variable_manager.extra_vars = load_extra_vars(loader=self.loader,
@@ -145,7 +117,7 @@ class AdHocRunner(object):
     Options = namedtuple('Options', [
         'connection', 'module_path', 'private_key_file', 'remote_user',
         'timeout', 'forks', 'become', 'become_method', 'become_user', 'check',
-        'extra_vars', 'diff'
+        'extra_vars', 'diff', 'verbosity'
     ])
 
     def __init__(
@@ -153,25 +125,13 @@ class AdHocRunner(object):
             hosts='',
             module_name='command',
             module_args='',
-            forks=5,
-            timeout=60,
-            pattern='all',
-            remote_user='root',
-            module_path=None,
-            connection_type='smart',
-            become=None,
-            become_method=None,
-            become_user=None,
-            check=False,
-            passwords=None,
-            extra_vars=None,
-            private_key_file=None,
             log_path=None,
-            log_id=None
+            log_id=None,
+            **kwargs
     ):
 
         # storage & defaults
-        self.pattern = pattern
+        self.pattern = kwargs.get('pattern', 'all')
         self.loader = DataLoader()
         self.module_name = module_name
         self.module_args = module_args
@@ -180,18 +140,19 @@ class AdHocRunner(object):
         display = MyDisplay(log_id=log_id, log_path=log_path)
         self.callback_module = AdHocResultCallback(display=display)
         self.options = self.Options(
-            connection=connection_type,
-            timeout=timeout,
-            module_path=module_path,
-            forks=forks,
-            become=become,
-            become_method=become_method,
-            become_user=become_user,
-            check=check,
-            remote_user=remote_user,
-            extra_vars=extra_vars or [],
-            private_key_file=private_key_file,
-            diff=False
+            connection=kwargs.get('connection_type', 'smart'),
+            timeout=kwargs.get('timeout', 60),
+            module_path=kwargs.get('module_path', None),
+            forks=kwargs.get('forks', 5),
+            become=kwargs.get('become', False),
+            become_method=kwargs.get('become_method', 'sudo'),
+            become_user=kwargs.get('become_user', None),
+            check=kwargs.get('check', False),
+            remote_user=kwargs.get('remote_user', None),
+            verbosity=kwargs.get('verbosity', None),
+            extra_vars=kwargs.get('extra_vars', []),
+            private_key_file=kwargs.get('private_key_file', None),
+            diff=kwargs.get('diff', False)
         )
 
         self.inventory = MyInventory(hosts_list=hosts)
@@ -199,7 +160,7 @@ class AdHocRunner(object):
         self.variable_manager.extra_vars = load_extra_vars(loader=self.loader,
                                                            options=self.options)
         self.variable_manager.options_vars = load_options_vars(self.options, '')
-        self.passwords = passwords or {}
+        self.passwords = kwargs.get('passwords', {})
 
         self.play_source = dict(
             name='Ansible Ad-hoc',

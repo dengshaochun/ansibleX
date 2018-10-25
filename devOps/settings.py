@@ -224,6 +224,7 @@ AES_SECRET_KEY = SECRET_KEY[:16]
 # Ansible task end prefix
 ANSIBLE_TASK_START_PREFIX = '>> Start <<'
 ANSIBLE_TASK_END_PREFIX = '>> All done <<'
+ANSIBLE_BASE_LOG_DIR = os.path.join(MEDIA_ROOT, 'logs', 'ansible')
 
 # logging
 LOGGING = {
