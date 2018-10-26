@@ -23,8 +23,7 @@ class LogsConsumer(WebsocketConsumer):
         message = redis.get(timeout=10).decode('utf-8')
         while message != settings.ANSIBLE_TASK_END_PREFIX:
             if message:
-                # Send message to room group
-                print('send: ' + str(message))
+                # Send message
                 self.send(text_data=json.dumps({
                     'message': str(message)
                 }))

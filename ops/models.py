@@ -11,7 +11,6 @@ from django.contrib.auth.models import User
 from assets.models import Asset, SystemUser
 from utils.encrypt import PrpCrypt
 
-
 # Create your models here.
 
 ANSIBLE_EXEC_TYPES = (
@@ -34,6 +33,15 @@ def validate_dict_format(value):
             _('%(value)s is not an python dict decode string.'),
             params={'value': value},
         )
+
+
+def convert_json_to_dict(value):
+    """
+    convert json data to python dict
+    :param value: <str> value
+    :return: <dict> value
+    """
+    return dict(yaml.safe_load(value))
 
 
 class Inventory(models.Model):
@@ -84,7 +92,7 @@ class InventoryGroup(models.Model):
                                   blank=True, null=True)
 
     def get_json_extra_vars(self):
-        return dict(yaml.safe_load(self.extra_vars)) if self.extra_vars else {}
+        return convert_json_to_dict(self.extra_vars) if self.extra_vars else {}
 
     def __str__(self):
         return self.name
@@ -99,7 +107,7 @@ class InventoryHost(models.Model):
                                   blank=True, null=True)
 
     def get_json_extra_vars(self):
-        return dict(yaml.safe_load(self.extra_vars)) if self.extra_vars else {}
+        return convert_json_to_dict(self.extra_vars) if self.extra_vars else {}
 
     def __str__(self):
         return '{0}'.format(self.host.ip)
@@ -156,7 +164,7 @@ class AnsibleConfig(models.Model):
     def get_real_passwords(self):
         passwords = {}
         if self.ssh_pass:
-            passwords['ssh_pass'] = PrpCrypt().decrypt(self.ssh_pass)
+            passwords['conn_pass'] = PrpCrypt().decrypt(self.ssh_pass)
         if self.become_pass:
             passwords['become_pass'] = PrpCrypt().decrypt(
                 self.become_pass)
@@ -232,6 +240,12 @@ class AnsibleScript(models.Model):
                               on_delete=models.SET_NULL,
                               null=True)
 
+    def get_json_extra_vars(self):
+        return convert_json_to_dict(self.extra_vars) if self.extra_vars else {}
+
+    def __str__(self):
+        return self.name
+
 
 class AnsiblePlayBook(models.Model):
 
@@ -254,7 +268,7 @@ class AnsiblePlayBook(models.Model):
                               null=True)
 
     def get_json_extra_vars(self):
-        return dict(yaml.safe_load(self.extra_vars)) if self.extra_vars else {}
+        return convert_json_to_dict(self.extra_vars) if self.extra_vars else {}
 
     def __str__(self):
         return self.name
@@ -292,7 +306,7 @@ class AnsibleExecLog(models.Model):
         super(AnsibleExecLog, self).save(*args, **kwargs)
 
     def __str__(self):
-        return self.log_id
+        return str(self.log_id)
 
 
 class AnsibleRunning(models.Model):

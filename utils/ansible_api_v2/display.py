@@ -54,7 +54,10 @@ class MyDisplay(Display):
 
     def _set_redis(self):
         if self.log_id:
-            self.redis = RedisQueue(name=self.log_id)
+            try:
+                self.redis = RedisQueue(name=self.log_id)
+            except:
+                self.redis = None
 
     def display(self, msg, color=None, stderr=False,
                 screen_only=False, log_only=False):

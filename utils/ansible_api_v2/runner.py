@@ -63,6 +63,14 @@ class PlaybookRunner(object):
         self.passwords = kwargs.get('passwords', {})
 
         self.options = self.Options(
+            listtags=kwargs.get('listtags', False),
+            listtasks=kwargs.get('listtasks', False),
+            listhosts=kwargs.get('listhosts', False),
+            syntax=kwargs.get('syntax', False),
+            ssh_common_args=kwargs.get('ssh_common_args', None),
+            ssh_extra_args=kwargs.get('ssh_extra_args', None),
+            sftp_extra_args=kwargs.get('sftp_extra_args', None),
+            scp_extra_args=kwargs.get('scp_extra_args', None),
             connection=kwargs.get('connection_type', 'smart'),
             timeout=kwargs.get('timeout', 60),
             module_path=kwargs.get('module_path', None),
@@ -96,6 +104,8 @@ class PlaybookRunner(object):
             self.runner._tqm._stdout_callback = self.callback_module
 
     def run(self):
+
+        succeed = True
         if not self.inventory.list_hosts('all'):
             raise AnsibleError('Inventory is empty.')
 
@@ -108,8 +118,8 @@ class PlaybookRunner(object):
             if stats and isinstance(stats, dict):
                 for k, v in stats.items():
                     if v and v.get('failures') > 0 or v.get('unreachable') > 0:
-                        raise AnsibleError(self.callback_module.output)
-        return self.callback_module.output
+                        succeed = False
+        return succeed, self.callback_module.output
 
 
 class AdHocRunner(object):
@@ -187,6 +197,8 @@ class AdHocRunner(object):
         # ** end __init__() **
 
     def run(self):
+
+        succeed = True
         if not self.inventory.list_hosts('all'):
             raise AnsibleError('Inventory is empty.')
 
@@ -206,9 +218,9 @@ class AdHocRunner(object):
             raise AnsibleError(self.callback_module.result_q)
         elif isinstance(self.callback_module.result_q, dict):
             if len(self.callback_module.result_q.get('dark')) > 0:
-                raise AnsibleError(self.callback_module.result_q)
+                succeed = False
 
-        return self.callback_module.result_q
+        return succeed, self.callback_module.result_q
 
     def check_module_args(self):
         if self.module_name in C.MODULE_REQUIRE_ARGS and not self.module_args:
