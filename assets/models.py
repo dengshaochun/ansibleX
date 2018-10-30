@@ -19,14 +19,13 @@ class Asset(models.Model):
                                 max_length=80,
                                 blank=True,
                                 null=True)
-    asset_group = models.ForeignKey('AssetGroup',
-                                    verbose_name=_('asset group'),
-                                    on_delete=models.SET_NULL,
-                                    blank=True,
-                                    null=True)
-    asset_tag = models.ManyToManyField('AssetTag',
-                                       verbose_name=_('asset tags'),
-                                       blank=True, null=True)
+    asset_groups = models.ForeignKey('AssetGroup',
+                                     verbose_name=_('asset group'),
+                                     on_delete=models.SET_NULL,
+                                     blank=True,
+                                     null=True)
+    asset_tags = models.ManyToManyField('AssetTag',
+                                        verbose_name=_('asset tags'))
     active = models.BooleanField(_('active status'), default=True)
     system_user = models.ForeignKey('SystemUser',
                                     verbose_name=_('system user'),

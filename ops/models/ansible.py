@@ -8,7 +8,8 @@ from django.core.exceptions import ValidationError
 from django.utils.translation import ugettext_lazy as _
 from django.contrib.auth.models import User
 
-from assets.models import Asset, SystemUser
+from assets.models import Asset, AssetGroup, AssetTag
+from ops.models.proj import GitProject
 from utils.encrypt import PrpCrypt
 
 # Create your models here.
@@ -64,19 +65,29 @@ class Inventory(models.Model):
 
     def get_json_inventory(self):
         inventory_dict = {}
-        host_var = {'host_vars': {}}
 
         for g in self.groups.all():
             inventory_dict.setdefault(g.name, {})
             inventory_dict[g.name]['hosts'] = []
             if g.extra_vars:
                 inventory_dict[g.name]['vars'] = g.get_json_extra_vars()
-            for h in g.hosts.all():
-                if h.host.active:
-                    inventory_dict[g.name]['hosts'].append(h.host.ip)
-                    host_var['host_vars'][h.host.ip] = h.get_json_extra_vars()
 
-        inventory_dict['_meta'] = host_var
+            # add asset form asset
+            for h in g.assets.all():
+                if h.active:
+                    inventory_dict[g.name]['hosts'].append(h.ip)
+
+            # add asset form asset groups
+            for h_g in g.asset_groups.all():
+                for h in h_g.asset_set.all():
+                    if h.active:
+                        inventory_dict[g.name]['hosts'].append(h.ip)
+
+            # add asset from asset tags
+            for h_t in g.asset_tags.all():
+                for h in h_t.asset_set.all():
+                    if h.active:
+                        inventory_dict[g.name]['hosts'].append(h.ip)
 
         return inventory_dict
 
@@ -85,8 +96,13 @@ class InventoryGroup(models.Model):
 
     name = models.CharField(_('inventory group name'),
                             max_length=80)
-    hosts = models.ManyToManyField('InventoryHost',
-                                   verbose_name=_('inventory hosts'))
+    assets = models.ManyToManyField(Asset, blank=True,
+                                    verbose_name=_('inventory assets'))
+    asset_groups = models.ManyToManyField(
+        AssetGroup,
+        verbose_name=_('inventory asset groups'), blank=True)
+    asset_tags = models.ManyToManyField(AssetTag, blank=True,
+                                        verbose_name=_('inventory asset tags'))
     extra_vars = models.TextField(_('extra vars'),
                                   validators=[validate_dict_format, ],
                                   blank=True, null=True)
@@ -96,24 +112,6 @@ class InventoryGroup(models.Model):
 
     def __str__(self):
         return self.name
-
-
-class InventoryHost(models.Model):
-
-    host = models.ForeignKey(Asset, verbose_name=_('inventory host'),
-                             on_delete=models.CASCADE)
-    extra_vars = models.TextField(_('extra vars'),
-                                  validators=[validate_dict_format, ],
-                                  blank=True, null=True)
-
-    def get_json_extra_vars(self):
-        return convert_json_to_dict(self.extra_vars) if self.extra_vars else {}
-
-    def __str__(self):
-        return '{0}'.format(self.host.ip)
-
-    class Meta:
-        unique_together = (('host', 'extra_vars'),)
 
 
 class AnsibleConfig(models.Model):
@@ -227,7 +225,8 @@ class AnsibleScript(models.Model):
                                        verbose_name=_('ansible module'),
                                        on_delete=models.CASCADE,
                                        null=True)
-    module_args = models.TextField(verbose_name=_('script args'),
+    module_args = models.CharField(verbose_name=_('script args'),
+                                   max_length=500,
                                    blank=True, null=True)
     extra_vars = models.TextField(verbose_name=_('script extra vars'),
                                   blank=True, null=True,
@@ -253,6 +252,8 @@ class AnsiblePlayBook(models.Model):
                                    verbose_name=_('playbook uuid'), unique=True)
     name = models.CharField(max_length=50,
                             verbose_name=_('playbook name'))
+    project = models.ForeignKey(GitProject, verbose_name=_('project'),
+                                on_delete=models.SET_NULL, null=True)
     desc = models.CharField(max_length=200,
                             verbose_name=_('playbook description'),
                             blank=True, null=True)
@@ -261,6 +262,9 @@ class AnsiblePlayBook(models.Model):
                                   validators=[validate_dict_format, ])
     file_path = models.FileField(upload_to='playbooks',
                                  verbose_name=_('playbook file path'))
+    role_path = models.CharField(max_length=200,
+                                 verbose_name=_('playbook role path'),
+                                 blank=True, null=True)
     concurrent = models.BooleanField(_('concurrent'), default=False)
     public = models.BooleanField(_('public status'), default=False)
     owner = models.ForeignKey(User, verbose_name=_('owner'),
@@ -268,7 +272,11 @@ class AnsiblePlayBook(models.Model):
                               null=True)
 
     def get_json_extra_vars(self):
-        return convert_json_to_dict(self.extra_vars) if self.extra_vars else {}
+        _extra_vars = convert_json_to_dict(self.extra_vars) \
+            if self.extra_vars else {}
+        if self.role_path:
+            _extra_vars.update({'role_path': self.role_path})
+        return _extra_vars
 
     def __str__(self):
         return self.name
@@ -306,7 +314,7 @@ class AnsibleExecLog(models.Model):
         super(AnsibleExecLog, self).save(*args, **kwargs)
 
     def __str__(self):
-        return str(self.log_id)
+        return '{0}'.format(self.log_id)
 
 
 class AnsibleRunning(models.Model):

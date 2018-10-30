@@ -226,6 +226,11 @@ ANSIBLE_TASK_START_PREFIX = '>> Start <<'
 ANSIBLE_TASK_END_PREFIX = '>> All done <<'
 ANSIBLE_BASE_LOG_DIR = os.path.join(MEDIA_ROOT, 'logs', 'ansible')
 
+
+# project local base path
+PROJECT_LOCAL_BASE_DIR = os.path.join(MEDIA_ROOT, 'repo')
+
+
 # logging
 LOGGING = {
     'version': 1,
