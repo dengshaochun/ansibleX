@@ -9,6 +9,7 @@
 
 import os
 import uuid
+import shutil
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils.translation import ugettext_lazy as _
@@ -50,7 +51,7 @@ class GitProject(models.Model):
         }
         if self.local_dir:
             if os.path.exists(self.local_dir):
-                os.removedirs(self.local_dir)
+                shutil.rmtree(self.local_dir)
                 _status['succeed'] = True
                 _status['msg'] = 'Remove local path : {0} successful!'.format(
                     self.local_dir)
@@ -72,6 +73,7 @@ class GitProject(models.Model):
             repo = GitUtil(self.remote_url, self.auth_user,
                            self.token)
             if action == 'clone':
+                self.do_clean_local_path()
                 result = repo.clone()
                 self.local_dir = repo.local_path
             elif action == 'pull':
@@ -128,7 +130,7 @@ class GitProject(models.Model):
 
 class ProjectActionLog(models.Model):
     ACTION_TYPES = (
-        ('init', 'init'),
+        ('clone', 'clone'),
         ('pull', 'pull')
     )
 
