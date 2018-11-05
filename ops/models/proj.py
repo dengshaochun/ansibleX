@@ -24,8 +24,10 @@ class GitProject(models.Model):
     name = models.CharField(_('project name'), max_length=50)
     remote_url = models.URLField(_('project url'))
     local_dir = models.CharField(_('project local dir'), max_length=100)
-    auth_user = models.CharField(_('project auth user'), max_length=50)
-    auth_token = models.CharField(_('project auth token'), max_length=50)
+    auth_user = models.CharField(_('project auth user'),
+                                 max_length=50, blank=True, null=True)
+    auth_token = models.CharField(_('project auth token'), max_length=50,
+                                  blank=True, null=True)
     current_version = models.CharField(_('current version'), max_length=50)
     active = models.BooleanField(_('active status'), default=True)
     last_update_time = models.DateTimeField(_('last update time'),
@@ -38,11 +40,15 @@ class GitProject(models.Model):
 
     @property
     def token(self):
-        return PrpCrypt().decrypt(self.auth_token)
+        if self.auth_token:
+            return PrpCrypt().decrypt(self.auth_token)
+        else:
+            return None
 
     @token.setter
     def token(self, token):
-        self.auth_token = PrpCrypt().encrypt(token)
+        if token:
+            self.auth_token = PrpCrypt().encrypt(token)
 
     def do_clean_local_path(self):
         _status = {

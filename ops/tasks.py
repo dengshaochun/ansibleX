@@ -76,7 +76,6 @@ def save_execute_log(log_id, ansible_type, object_id, inventory_id, config_id,
 def exec_ansible_script(log_id, script_id, inventory_id,
                         config_id, **user_input):
 
-    succeed = True
     ansible_type = 'script'
     log_path = os.path.join(settings.ANSIBLE_BASE_LOG_DIR, log_id)
     display = MyDisplay(log_id=log_id, log_path=log_path)

@@ -260,7 +260,8 @@ class AnsiblePlayBook(models.Model):
     name = models.CharField(max_length=50,
                             verbose_name=_('playbook name'))
     project = models.ForeignKey(GitProject, verbose_name=_('project'),
-                                on_delete=models.SET_NULL, null=True)
+                                on_delete=models.SET_NULL,
+                                blank=True, null=True)
     desc = models.CharField(max_length=200,
                             verbose_name=_('playbook description'),
                             blank=True, null=True)
