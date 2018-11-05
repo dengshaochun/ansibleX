@@ -156,6 +156,22 @@ class AnsibleConfig(models.Model):
                               null=True)
     public = models.BooleanField(_('public config status'), default=False)
 
+    @property
+    def ssh_password(self):
+        return PrpCrypt().decrypt(self.ssh_pass)
+
+    @ssh_password.setter
+    def ssh_password(self, value):
+        self.ssh_pass = PrpCrypt().encrypt(value)
+
+    @property
+    def become_password(self):
+        return PrpCrypt().decrypt(self.become_pass)
+
+    @become_password.setter
+    def become_password(self, value):
+        self.become_pass = PrpCrypt().encrypt(value)
+
     def __str__(self):
         return self.config_name
 
@@ -187,15 +203,6 @@ class AnsibleConfig(models.Model):
         }
 
         return config
-
-    def save(self, *args, **kwargs):
-        if self.ssh_pass:
-            self.ssh_pass = PrpCrypt().encrypt(self.ssh_pass)
-
-        if self.become_pass:
-            self.become_pass = PrpCrypt().encrypt(self.become_pass)
-
-        super(AnsibleConfig, self).save(*args, **kwargs)
 
 
 class AvailableModule(models.Model):
@@ -303,15 +310,15 @@ class AnsibleExecLog(models.Model):
     create_time = models.DateTimeField(_('create time'), auto_now_add=True)
 
     def get_full_log(self):
-        if self.full_log:
-            return pickle.loads(self.full_log)
-        else:
-            return ''
+        return self.completed_log
 
-    def save(self, *args, **kwargs):
-        if self.full_log:
-            self.full_log = pickle.dumps(self.full_log)
-        super(AnsibleExecLog, self).save(*args, **kwargs)
+    @property
+    def completed_log(self):
+        return pickle.loads(self.full_log)
+
+    @completed_log.setter
+    def completed_log(self, value):
+        self.full_log = pickle.dumps(value)
 
     def __str__(self):
         return '{0}'.format(self.log_id)

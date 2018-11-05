@@ -68,12 +68,11 @@ class GitProject(models.Model):
             'msg': ''
         }
         if not self.active:
-            _status['msg'] = 'Project is inactive! Action Canceled!'
+            _status['msg'] = 'Project is inactive! Action canceled!'
         else:
             repo = GitUtil(self.remote_url, self.auth_user,
                            self.token)
             if action == 'clone':
-                self.do_clean_local_path()
                 result = repo.clone()
                 self.local_dir = repo.local_path
             elif action == 'pull':
@@ -122,7 +121,7 @@ class GitProject(models.Model):
                     else:
                         _skip += 1
             _status['succeed'] = True
-            _status['msg'] = 'Add  {0}, Skip {1}!'.format(_add, _skip)
+            _status['msg'] = 'New add {0}, Skip {1}!'.format(_add, _skip)
         except Exception as e:
             _status['msg'] = str(e)
         return _status

@@ -34,8 +34,11 @@ class AssetGroupSerializer(serializers.ModelSerializer):
 
 
 class SystemUserSerializer(serializers.ModelSerializer):
+    user_password = serializers.CharField(required=True,
+                                          style={'input_type': 'password'},
+                                          write_only=True)
     asset_set = serializers.StringRelatedField(many=True, read_only=True)
 
     class Meta:
         model = SystemUser
-        fields = '__all__'
+        exclude = ('password', )

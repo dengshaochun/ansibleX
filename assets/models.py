@@ -96,12 +96,13 @@ class SystemUser(models.Model):
     create_time = models.DateTimeField(auto_now_add=True,
                                        verbose_name=_('create time'))
 
-    def get_real_password(self):
+    @property
+    def user_password(self):
         return PrpCrypt().decrypt(self.password)
 
-    def save(self, *args, **kwargs):
-        self.password = PrpCrypt().encrypt(self.password)
-        super(SystemUser, self).save(*args, **kwargs)
+    @user_password.setter
+    def user_password(self, value):
+        self.password = PrpCrypt().encrypt(value)
 
     def __str__(self):
         return self.name
