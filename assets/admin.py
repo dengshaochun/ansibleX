@@ -32,6 +32,18 @@ class SystemUserAdmin(admin.ModelAdmin):
     model = SystemUser
     search_fields = ('name', )
     list_display = ('name', 'owner', 'create_time')
+    readonly_fields = ('owner',)
+
+    def save_model(self, request, obj, form, change):
+        if change:
+            old_obj = SystemUser.objects.get(pk=obj.pk)
+            if old_obj.password != obj.password:
+                obj.user_password = obj.password
+        else:
+            obj.user_password = obj.password
+
+        obj.owner = request.user
+        super().save_model(request, obj, form, change)
 
 
 admin.site.register(Asset, AssetAdmin)

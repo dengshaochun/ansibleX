@@ -1,12 +1,14 @@
 from django.db import models
 
+import os
 import uuid
 import yaml
-import pickle
+import datetime
 from django.core.exceptions import ValidationError
 
 from django.utils.translation import ugettext_lazy as _
 from django.contrib.auth.models import User
+from django.conf import settings
 
 from assets.models import Asset, AssetGroup, AssetTag
 from ops.models.proj import GitProject
@@ -49,13 +51,11 @@ class Inventory(models.Model):
 
     inventory_id = models.UUIDField(_('inventory id'), default=uuid.uuid4(),
                                     unique=True)
-    name = models.CharField(_('inventory name'),
-                            max_length=80)
+    name = models.CharField(_('inventory name'), max_length=80)
     groups = models.ManyToManyField('InventoryGroup',
                                     verbose_name=_('inventory groups'))
     owner = models.ForeignKey(User, verbose_name=_('owner'),
-                              on_delete=models.SET_NULL,
-                              null=True)
+                              on_delete=models.SET_NULL, null=True)
     create_time = models.DateTimeField(_('create time'), auto_now_add=True)
     last_modified_time = models.DateTimeField(_('last modified time'),
                                               auto_now=True)
@@ -117,7 +117,7 @@ class InventoryGroup(models.Model):
 class AnsibleConfig(models.Model):
 
     config_id = models.UUIDField(default=uuid.uuid4,
-                                 verbose_name=_('module uuid'), unique=True)
+                                 verbose_name=_('config uuid'), unique=True)
     config_name = models.CharField(_('ansible config name'),
                                    max_length=80, unique=True)
     forks = models.IntegerField(_('ansible forks'),
@@ -158,7 +158,10 @@ class AnsibleConfig(models.Model):
 
     @property
     def ssh_password(self):
-        return PrpCrypt().decrypt(self.ssh_pass)
+        if self.ssh_pass:
+            return PrpCrypt().decrypt(self.ssh_pass)
+        else:
+            return None
 
     @ssh_password.setter
     def ssh_password(self, value):
@@ -307,25 +310,42 @@ class AnsibleExecLog(models.Model):
                                  null=True)
     user_input = models.TextField(_('user input args'), blank=True, null=True)
     succeed = models.BooleanField(_('result status'), default=True)
-    full_log = models.TextField(_('full log'), blank=True, null=True)
+    full_log = models.FileField(upload_to='logs/ansible/%Y%m/full/',
+                                verbose_name=_('private key file path'),
+                                blank=True, null=True)
     create_time = models.DateTimeField(_('create time'), auto_now_add=True)
 
-    def get_full_log(self):
-        return self.completed_log
+    @property
+    def user_raw(self):
+        return self.user_input
+
+    @user_raw.setter
+    def user_raw(self, value):
+        self.user_input = yaml.safe_dump(value)
 
     @property
     def completed_log(self):
-        return pickle.loads(self.full_log)
+        return self.full_log
 
     @completed_log.setter
     def completed_log(self, value):
-        self.full_log = pickle.dumps(value)
+        YYYYMM = datetime.datetime.now().strftime('%Y%m')
+        log_path = os.path.join(settings.ANSIBLE_BASE_LOG_DIR, YYYYMM, 'full',
+                                self.log_id)
+
+        base_log_dir = os.path.dirname(log_path)
+        if not os.path.exists(base_log_dir):
+            os.makedirs(base_log_dir)
+
+        with open(log_path, 'a+') as fs:
+            fs.write(yaml.safe_dump(value))
+        self.full_log = log_path
 
     def __str__(self):
         return '{0}'.format(self.log_id)
 
 
-class AnsibleRunning(models.Model):
+class AnsibleRun(models.Model):
 
     ansible_type = models.CharField(_('ansible type'), max_length=20,
                                     choices=ANSIBLE_EXEC_TYPES)

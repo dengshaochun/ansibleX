@@ -18,6 +18,5 @@ class UserGroupAdmin(admin.ModelAdmin):
     search_fields = ('name', )
     list_display = ('name', 'desc', 'create_time')
 
-
 admin.site.register(UserProfile, UserProfileAdmin)
 admin.site.register(UserGroup, UserGroupAdmin)

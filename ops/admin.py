@@ -5,17 +5,22 @@ from django.contrib import messages
 
 from ops.models import (Inventory, AnsiblePlayBook, AvailableModule,
                         AnsibleScript, InventoryGroup, AnsibleConfig,
-                        AnsibleExecLog, AnsibleRunning, GitProject,
+                        AnsibleExecLog, AnsibleRun, GitProject,
                         ProjectActionLog)
+from ops.tasks import exec_project_command
 
 
 class InventoryAdmin(admin.ModelAdmin):
 
     model = Inventory
-    search_fields = ('name', 'inventory_id', 'owner')
+    search_fields = ('name', 'inventory_id')
     list_display = ('inventory_id', 'name', 'owner')
     filter_horizontal = ('groups',)
-    readonly_fields = ('create_time', )
+    readonly_fields = ('create_time', 'owner')
+
+    def save_model(self, request, obj, form, change):
+        obj.owner = request.user
+        super().save_model(request, obj, form, change)
 
 
 class InventoryGroupAdmin(admin.ModelAdmin):
@@ -31,14 +36,23 @@ class AnsiblePlayBookAdmin(admin.ModelAdmin):
     model = AnsiblePlayBook
     search_fields = ('playbook_id', 'name')
     list_display = ('playbook_id', 'name', 'concurrent', 'owner')
-    readonly_fields = ('playbook_id',)
+    readonly_fields = ('playbook_id', 'owner')
+
+    def save_model(self, request, obj, form, change):
+        obj.owner = request.user
+        super().save_model(request, obj, form, change)
 
 
 class AvailableModuleAdmin(admin.ModelAdmin):
 
     model = AvailableModule
-    search_fields = ('name', 'active', 'public', 'owner')
+    search_fields = ('name', 'active', 'public')
     list_display = ('name', 'active', 'public', 'owner')
+    readonly_fields = ('owner', )
+
+    def save_model(self, request, obj, form, change):
+        obj.owner = request.user
+        super().save_model(request, obj, form, change)
 
 
 class AnsibleScriptAdmin(admin.ModelAdmin):
@@ -46,15 +60,33 @@ class AnsibleScriptAdmin(admin.ModelAdmin):
     model = AnsibleScript
     search_fields = ('script_id', 'name')
     list_display = ('script_id', 'name', 'concurrent', 'owner')
-    readonly_fields = ('script_id',)
+    readonly_fields = ('script_id', 'owner')
+
+    def save_model(self, request, obj, form, change):
+        obj.owner = request.user
+        super().save_model(request, obj, form, change)
 
 
 class AnsibleConfigAdmin(admin.ModelAdmin):
 
     model = AnsibleConfig
-    search_fields = ('config_id', 'config_name', 'public', 'owner')
+    search_fields = ('config_id', 'config_name', 'public')
     list_display = ('config_id', 'config_name', 'public', 'owner')
-    readonly_fields = ('config_id', )
+    readonly_fields = ('config_id', 'owner')
+
+    def save_model(self, request, obj, form, change):
+        if change:
+            old_obj = AnsibleConfig.objects.get(pk=obj.pk)
+            if old_obj.ssh_pass != obj.ssh_pass:
+                obj.ssh_password = obj.ssh_pass
+            if old_obj.become_pass != obj.become_pass:
+                obj.become_password = obj.become_pass
+        else:
+            obj.ssh_password = obj.ssh_pass
+            obj.become_password = obj.become_pass
+
+        obj.owner = request.user
+        super().save_model(request, obj, form, change)
 
 
 class AnsibleExecLogAdmin(admin.ModelAdmin):
@@ -68,9 +100,9 @@ class AnsibleExecLogAdmin(admin.ModelAdmin):
                        'inventory_id')
 
 
-class AnsibleRunningAdmin(admin.ModelAdmin):
+class AnsibleRunAdmin(admin.ModelAdmin):
 
-    model = AnsibleRunning
+    model = AnsibleRun
     search_fields = ('ansible_type', 'running_id')
     list_display = ('ansible_type', 'running_id', 'create_time')
     readonly_fields = ('ansible_type', 'running_id', 'create_time')
@@ -85,11 +117,22 @@ class GitProjectAdmin(admin.ModelAdmin):
     list_display = ('project_id', 'name', 'current_version', 'owner',
                     'last_update_time')
     readonly_fields = ('current_version', 'last_update_time', 'project_id',
-                       'local_dir')
+                       'local_dir', 'owner')
+
+    def save_model(self, request, obj, form, change):
+        if change:
+            old_obj = GitProject.objects.get(pk=obj.pk)
+            if old_obj.auth_token != obj.auth_token:
+                obj.token = obj.auth_token
+        else:
+            obj.token = obj.auth_token
+
+        obj.owner = request.user
+        super().save_model(request, obj, form, change)
 
     def clone_git_project(self, request, queryset):
         for q in queryset:
-            result = q.do_project_action(action='clone')
+            result = exec_project_command(q.project_id, 'clone')
             if result.get('succeed'):
                 messages.add_message(request, messages.INFO, result.get('msg'))
             else:
@@ -97,7 +140,7 @@ class GitProjectAdmin(admin.ModelAdmin):
 
     def pull_git_project(self, request, queryset):
         for q in queryset:
-            result = q.do_project_action(action='pull')
+            result = exec_project_command(q.project_id, 'pull')
             if result.get('succeed'):
                 messages.add_message(request, messages.INFO, result.get('msg'))
             else:
@@ -105,7 +148,7 @@ class GitProjectAdmin(admin.ModelAdmin):
 
     def remove_local_dir(self, request, queryset):
         for q in queryset:
-            result = q.do_clean_local_path()
+            result = exec_project_command(q.project_id, 'clean')
             if result.get('succeed'):
                 messages.add_message(request, messages.INFO, result.get('msg'))
             else:
@@ -113,15 +156,11 @@ class GitProjectAdmin(admin.ModelAdmin):
 
     def find_playbooks(self, request, queryset):
         for q in queryset:
-            result = q.find_playbooks(owner=request.user)
+            result = exec_project_command(q.project_id, 'find')
             if result.get('succeed'):
                 messages.add_message(request, messages.INFO, result.get('msg'))
             else:
                 messages.add_message(request, messages.ERROR, result.get('msg'))
-
-    def save_model(self, request, obj, form, change):
-        obj.token = obj.auth_token
-        super().save_model(request, obj, form, change)
 
     clone_git_project.short_description = 'clone project'
     pull_git_project.short_description = 'pull project'
@@ -145,6 +184,6 @@ admin.site.register(AvailableModule, AvailableModuleAdmin)
 admin.site.register(AnsibleScript, AnsibleScriptAdmin)
 admin.site.register(AnsibleConfig, AnsibleConfigAdmin)
 admin.site.register(AnsibleExecLog, AnsibleExecLogAdmin)
-admin.site.register(AnsibleRunning, AnsibleRunningAdmin)
+admin.site.register(AnsibleRun, AnsibleRunAdmin)
 admin.site.register(GitProject, GitProjectAdmin)
 admin.site.register(ProjectActionLog, ProjectActionLogAdmin)
