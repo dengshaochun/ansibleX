@@ -8,7 +8,7 @@
 
 from rest_framework import serializers
 from ops.models import (InventoryGroup, Inventory, AnsiblePlayBook,
-                        AvailableModule, AnsibleRun, AnsibleExecLog,
+                        AvailableModule, AnsibleLock, AnsibleExecLog,
                         AnsibleConfig, AnsibleScript)
 
 
@@ -60,10 +60,10 @@ class AnsibleConfigSerializer(serializers.ModelSerializer):
         read_only_fields = ('owner', 'config_id')
 
 
-class AnsibleRunSerializer(serializers.ModelSerializer):
+class AnsibleLockSerializer(serializers.ModelSerializer):
 
     class Meta:
-        model = AnsibleRun
+        model = AnsibleLock
         fields = '__all__'
 
 

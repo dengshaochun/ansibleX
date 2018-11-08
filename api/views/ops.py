@@ -11,11 +11,11 @@ import logging
 from rest_framework import viewsets
 from ops.models import (Inventory, InventoryGroup, AvailableModule,
                         AnsibleScript, AnsiblePlayBook, AnsibleConfig,
-                        AnsibleRun, AnsibleExecLog)
+                        AnsibleLock, AnsibleExecLog)
 from api.serializers import (InventorySerializer, InventoryGroupSerializer,
                              AvailableModuleSerializer, AnsibleScriptSerializer,
                              AnsiblePlayBookSerializer, AnsibleConfigSerializer,
-                             AnsibleRunSerializer, AnsibleExecLogSerializer)
+                             AnsibleLockSerializer, AnsibleExecLogSerializer)
 
 logger = logging.getLogger(__name__)
 
@@ -55,10 +55,10 @@ class AnsibleConfigViewSet(viewsets.ModelViewSet):
     serializer_class = AnsibleConfigSerializer
 
 
-class AnsibleRunViewSet(viewsets.ReadOnlyModelViewSet):
+class AnsibleLockViewSet(viewsets.ReadOnlyModelViewSet):
 
-    queryset = AnsibleRun.objects.all()
-    serializer_class = AnsibleRunSerializer
+    queryset = AnsibleLock.objects.all()
+    serializer_class = AnsibleLockSerializer
 
 
 class AnsibleExecLogViewSet(viewsets.ReadOnlyModelViewSet):

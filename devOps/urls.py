@@ -22,9 +22,9 @@ urlpatterns = [
     path('api/v1/', include('api.urls')),
     path('admin/', admin.site.urls),
     path('chat/', include('app.urls')),
-    path('media/<slug:path>', serve,
+    path('media/<path:path>', serve,
          {'document_root': settings.MEDIA_ROOT}),
-    path('static/<slug:path>', serve,
+    path('static/<path:path>', serve,
          {'document_root': settings.STATIC_ROOT}),
 ]
 

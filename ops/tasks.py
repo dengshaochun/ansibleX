@@ -17,40 +17,40 @@ from celery import shared_task
 from django.conf import settings
 from utils.ansible_api_v2.runner import AdHocRunner, PlaybookRunner
 from ops.models import (Inventory, AnsiblePlayBook, AnsibleScript,
-                        AnsibleRun, AnsibleExecLog, AnsibleConfig,
+                        AnsibleLock, AnsibleExecLog, AnsibleConfig,
                         GitProject, ProjectActionLog)
 from utils.ansible_api_v2.display import MyDisplay
 
 logger = logging.getLogger(__name__)
 
 
-def check_ready(obj_type, obj_id, display):
-    if obj_type == 'script':
-        obj = AnsibleScript.objects.get(script_id=obj_id)
-    elif obj_type == 'playbook':
-        obj = AnsiblePlayBook.objects.get(playbook_id=obj_id)
+def check_ready(ansible_type, object_id, display):
+    if ansible_type == 'script':
+        obj = AnsibleScript.objects.get(script_id=object_id)
+    elif ansible_type == 'playbook':
+        obj = AnsiblePlayBook.objects.get(playbook_id=object_id)
     else:
-        raise Exception('Not support type: {0} !'.format(obj_type))
+        raise Exception('Not support type: {0} !'.format(ansible_type))
 
     if not obj.concurrent:
         while True:
-            lock = AnsibleRun.objects.filter(ansible_type=obj_type,
-                                             running_id=obj_id).first()
+            lock = AnsibleLock.objects.filter(ansible_type=ansible_type,
+                                              running_id=object_id).first()
             if not lock:
                 break
             display.display('Another same {0} is running, waiting...'.format(
-                obj_type))
+                ansible_type))
             time.sleep(10)
 
-    AnsibleRun(ansible_type=obj_type, running_id=obj_id)
+    AnsibleLock(ansible_type=ansible_type, running_id=object_id)
     display.display(settings.ANSIBLE_TASK_START_PREFIX)
     return obj
 
 
-def release_lock(obj_type, obj_id, display):
+def release_lock(ansible_type, object_id, display):
     try:
-        lock = AnsibleRun.objects.filter(ansible_type=obj_type,
-                                         running_id=obj_id).first()
+        lock = AnsibleLock.objects.filter(ansible_type=ansible_type,
+                                          running_id=object_id).first()
         if lock:
             lock.delete()
         display.display(settings.ANSIBLE_TASK_END_PREFIX)
@@ -58,115 +58,88 @@ def release_lock(obj_type, obj_id, display):
         logger.exception(e)
 
 
-def save_execute_log(log_id, ansible_type, object_id, inventory_id, config_id,
-                     succeed, full_log, user_input):
+def save_execute_log(**kwargs):
 
     try:
         tmp_log = AnsibleExecLog(
-            log_id=log_id,
-            ansible_type=ansible_type,
-            object_id=object_id,
-            inventory_id=inventory_id,
-            config_id=config_id,
-            succeed=succeed
+            log_id=kwargs.get('log_id'),
+            ansible_type=kwargs.get('ansible_type'),
+            object_id=kwargs.get('object_id'),
+            inventory_id=kwargs.get('inventory_id'),
+            config_id=kwargs.get('config_id'),
+            succeed=kwargs.get('succeed')
         )
-        tmp_log.user_raw = user_input
-        tmp_log.completed_log = full_log
+        tmp_log.user_raw = kwargs.get('user_input')
+        tmp_log.completed_log = kwargs.get('full_log')
         tmp_log.save()
     except Exception as e:
         logger.exception(e)
 
 
 @shared_task
-def exec_ansible_script(log_id, script_id, inventory_id,
-                        config_id, **user_input):
+def run_ansible(ansible_type, log_id, object_id, inventory_id, config_id,
+                **user_input):
 
-    ansible_type = 'script'
-    YYYYMM = datetime.datetime.now().strftime('%Y%m')
-    log_path = os.path.join(settings.ANSIBLE_BASE_LOG_DIR, YYYYMM, log_id)
+    runner = None
+    # current year and month
+    yy_mm = datetime.datetime.now().strftime('%Y%m')
+    # define log path
+    log_path = os.path.join(settings.ANSIBLE_BASE_LOG_DIR, yy_mm, log_id)
+    # define ansible display
     display = MyDisplay(log_id=log_id, log_path=log_path)
+    current_obj = check_ready(**locals())
+    inventory_obj = Inventory.objects.get(inventory_id=inventory_id)
+    extra_vars = current_obj.get_json_extra_vars()
+    if user_input.get('extra_vars'):
+        extra_vars.update(
+            dict(yaml.safe_load(user_input.get('extra_vars'))))
 
-    try:
-        script_obj = check_ready(ansible_type, script_id, display)
-        inventory_obj = Inventory.objects.get(inventory_id=inventory_id)
+    kwargs = AnsibleConfig.objects.get(
+        config_id=config_id).get_json_config()
+    kwargs['extra_vars'] = [extra_vars, ]
 
+    if ansible_type == 'script':
         if user_input.get('module_args'):
             module_args = user_input.get('module_args')
         else:
-            module_args = script_obj.module_args
-        extra_vars = script_obj.get_json_extra_vars()
-        if user_input.get('extra_vars'):
-            extra_vars.update(
-                dict(yaml.safe_load(user_input.get('extra_vars'))))
-
-        kwargs = AnsibleConfig.objects.get(
-            config_id=config_id).get_json_config()
-        kwargs['extra_vars'] = [extra_vars]
+            module_args = current_obj.module_args
 
         runner = AdHocRunner(
-            module_name=script_obj.ansible_module.name,
+            module_name=current_obj.ansible_module.name,
             module_args=module_args,
             hosts=inventory_obj.get_json_inventory(),
             log_path=log_path,
             log_id=log_id,
             **kwargs
         )
-        succeed, result = runner.run()
-    except Exception as e:
-        result = str(e)
-        succeed = False
-        display.display(result, stderr=True)
-    finally:
-        release_lock(ansible_type, script_id, display)
-    save_execute_log(log_id, ansible_type, script_id,
-                     inventory_id, config_id, succeed, result, user_input)
-    return result
-
-
-@shared_task
-def exec_ansible_playbook(log_id, playbook_id, inventory_id,
-                          config_id, **user_input):
-
-    ansible_type = 'playbook'
-    YYYYMM = datetime.datetime.now().strftime('%Y%m')
-    log_path = os.path.join(settings.ANSIBLE_BASE_LOG_DIR, YYYYMM, log_id)
-    display = MyDisplay(log_id=log_id, log_path=log_path)
-
-    try:
-        playbook_obj = check_ready(ansible_type, playbook_id, display)
-        inventory_obj = Inventory.objects.get(inventory_id=inventory_id)
-
-        extra_vars = playbook_obj.get_json_extra_vars()
-        if user_input.get('extra_vars'):
-            extra_vars.update(
-                dict(yaml.safe_load(user_input.get('extra_vars'))))
-
-        kwargs = AnsibleConfig.objects.get(
-            config_id=config_id).get_json_config()
-        kwargs['extra_vars'] = [extra_vars, ]
-
+    elif ansible_type == 'playbook':
         runner = PlaybookRunner(
-            playbook_path=playbook_obj.file_path.path,
+            playbook_path=current_obj.file_path.path,
             hosts=inventory_obj.get_json_inventory(),
             log_path=log_path,
             log_id=log_id,
             roles_path=None,
             **kwargs
         )
-        succeed, result = runner.run()
+    try:
+        if runner:
+            succeed, result = runner.run()
+        else:
+            succeed = False
+            result = {'error': 'runner is not defined!'}
     except Exception as e:
         result = str(e)
         succeed = False
         display.display(result, stderr=True)
     finally:
-        release_lock(ansible_type, playbook_id, display)
-    save_execute_log(log_id, ansible_type, playbook_id,
-                     inventory_id, config_id, succeed, result, user_input)
+        release_lock(**locals())
+    # save log
+    save_execute_log(**locals())
     return result
 
 
 @shared_task
-def exec_project_command(project_id, action_type):
+def run_project_command(project_id, action_type):
 
     _status = {
         'succeed': False,

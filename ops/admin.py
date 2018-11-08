@@ -5,9 +5,9 @@ from django.contrib import messages
 
 from ops.models import (Inventory, AnsiblePlayBook, AvailableModule,
                         AnsibleScript, InventoryGroup, AnsibleConfig,
-                        AnsibleExecLog, AnsibleRun, GitProject,
+                        AnsibleExecLog, AnsibleLock, GitProject,
                         ProjectActionLog)
-from ops.tasks import exec_project_command
+from ops.tasks import run_project_command
 
 
 class InventoryAdmin(admin.ModelAdmin):
@@ -100,12 +100,12 @@ class AnsibleExecLogAdmin(admin.ModelAdmin):
                        'inventory_id')
 
 
-class AnsibleRunAdmin(admin.ModelAdmin):
+class AnsibleLockAdmin(admin.ModelAdmin):
 
-    model = AnsibleRun
-    search_fields = ('ansible_type', 'running_id')
-    list_display = ('ansible_type', 'running_id', 'create_time')
-    readonly_fields = ('ansible_type', 'running_id', 'create_time')
+    model = AnsibleLock
+    search_fields = ('ansible_type', 'lock_object_id')
+    list_display = ('ansible_type', 'lock_object_id', 'create_time')
+    readonly_fields = ('ansible_type', 'lock_object_id', 'create_time')
 
 
 class GitProjectAdmin(admin.ModelAdmin):
@@ -132,7 +132,7 @@ class GitProjectAdmin(admin.ModelAdmin):
 
     def clone_git_project(self, request, queryset):
         for q in queryset:
-            result = exec_project_command(q.project_id, 'clone')
+            result = run_project_command(q.project_id, 'clone')
             if result.get('succeed'):
                 messages.add_message(request, messages.INFO, result.get('msg'))
             else:
@@ -140,7 +140,7 @@ class GitProjectAdmin(admin.ModelAdmin):
 
     def pull_git_project(self, request, queryset):
         for q in queryset:
-            result = exec_project_command(q.project_id, 'pull')
+            result = run_project_command(q.project_id, 'pull')
             if result.get('succeed'):
                 messages.add_message(request, messages.INFO, result.get('msg'))
             else:
@@ -148,7 +148,7 @@ class GitProjectAdmin(admin.ModelAdmin):
 
     def remove_local_dir(self, request, queryset):
         for q in queryset:
-            result = exec_project_command(q.project_id, 'clean')
+            result = run_project_command(q.project_id, 'clean')
             if result.get('succeed'):
                 messages.add_message(request, messages.INFO, result.get('msg'))
             else:
@@ -156,7 +156,7 @@ class GitProjectAdmin(admin.ModelAdmin):
 
     def find_playbooks(self, request, queryset):
         for q in queryset:
-            result = exec_project_command(q.project_id, 'find')
+            result = run_project_command(q.project_id, 'find')
             if result.get('succeed'):
                 messages.add_message(request, messages.INFO, result.get('msg'))
             else:
@@ -184,6 +184,6 @@ admin.site.register(AvailableModule, AvailableModuleAdmin)
 admin.site.register(AnsibleScript, AnsibleScriptAdmin)
 admin.site.register(AnsibleConfig, AnsibleConfigAdmin)
 admin.site.register(AnsibleExecLog, AnsibleExecLogAdmin)
-admin.site.register(AnsibleRun, AnsibleRunAdmin)
+admin.site.register(AnsibleLock, AnsibleLockAdmin)
 admin.site.register(GitProject, GitProjectAdmin)
 admin.site.register(ProjectActionLog, ProjectActionLogAdmin)

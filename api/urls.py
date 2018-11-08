@@ -23,7 +23,7 @@ router.register(r'available_modules', views.AvailableModuleViewSet)
 router.register(r'ansible_configs', views.AnsibleConfigViewSet)
 router.register(r'ansible_scripts', views.AnsibleScriptViewSet)
 router.register(r'ansible_playbooks', views.AnsiblePlayBookViewSet)
-router.register(r'ansible_runs', views.AnsibleRunViewSet)
+router.register(r'ansible_locks', views.AnsibleLockViewSet)
 router.register(r'ansible_exec_logs', views.AnsibleExecLogViewSet)
 
 # The API URLs are now determined automatically by the router.

@@ -1,14 +1,13 @@
 from django.db import models
 
-import os
 import uuid
 import yaml
-import datetime
+import json
 from django.core.exceptions import ValidationError
 
 from django.utils.translation import ugettext_lazy as _
 from django.contrib.auth.models import User
-from django.conf import settings
+from django.core.files.base import ContentFile
 
 from assets.models import Asset, AssetGroup, AssetTag
 from ops.models.proj import GitProject
@@ -311,17 +310,17 @@ class AnsibleExecLog(models.Model):
     user_input = models.TextField(_('user input args'), blank=True, null=True)
     succeed = models.BooleanField(_('result status'), default=True)
     full_log = models.FileField(upload_to='logs/ansible/%Y%m/full/',
-                                verbose_name=_('private key file path'),
+                                verbose_name=_('full log file path'),
                                 blank=True, null=True)
     create_time = models.DateTimeField(_('create time'), auto_now_add=True)
 
     @property
     def user_raw(self):
-        return self.user_input
+        return convert_json_to_dict(self.user_input) if self.user_input else {}
 
     @user_raw.setter
     def user_raw(self, value):
-        self.user_input = yaml.safe_dump(value)
+        self.user_input = yaml.dump(value)
 
     @property
     def completed_log(self):
@@ -329,31 +328,22 @@ class AnsibleExecLog(models.Model):
 
     @completed_log.setter
     def completed_log(self, value):
-        YYYYMM = datetime.datetime.now().strftime('%Y%m')
-        log_path = os.path.join(settings.ANSIBLE_BASE_LOG_DIR, YYYYMM, 'full',
-                                self.log_id)
-
-        base_log_dir = os.path.dirname(log_path)
-        if not os.path.exists(base_log_dir):
-            os.makedirs(base_log_dir)
-
-        with open(log_path, 'a+') as fs:
-            fs.write(yaml.safe_dump(value))
-        self.full_log = log_path
+        self.full_log.save(self.log_id,
+                           ContentFile(json.dumps(value, indent=4)))
 
     def __str__(self):
         return '{0}'.format(self.log_id)
 
 
-class AnsibleRun(models.Model):
+class AnsibleLock(models.Model):
 
     ansible_type = models.CharField(_('ansible type'), max_length=20,
                                     choices=ANSIBLE_EXEC_TYPES)
-    running_id = models.UUIDField(_('running id'))
+    lock_object_id = models.UUIDField(_('locked object id'))
     create_time = models.DateTimeField(_('create time'), auto_now_add=True)
 
     class Meta:
-        unique_together = (('ansible_type', 'running_id'),)
+        unique_together = (('ansible_type', 'lock_object_id'),)
 
     def __str__(self):
-        return '{0}:{1}'.format(self.ansible_type, self.running_id)
+        return '{0}:{1}'.format(self.ansible_type, self.lock_object_id)
