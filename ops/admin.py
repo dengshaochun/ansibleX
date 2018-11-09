@@ -6,7 +6,8 @@ from django.contrib import messages
 from ops.models import (Inventory, AnsiblePlayBook, AvailableModule,
                         AnsibleScript, InventoryGroup, AnsibleConfig,
                         AnsibleExecLog, AnsibleLock, GitProject,
-                        ProjectActionLog)
+                        ProjectActionLog, Alert, AlertLevel, AlertGroup,
+                        AlertLog)
 from ops.tasks import run_project_command
 
 
@@ -132,7 +133,7 @@ class GitProjectAdmin(admin.ModelAdmin):
 
     def clone_git_project(self, request, queryset):
         for q in queryset:
-            result = run_project_command(q.project_id, 'clone')
+            result = run_project_command(q.project_id, 'clone', request.user.pk)
             if result.get('succeed'):
                 messages.add_message(request, messages.INFO, result.get('msg'))
             else:
@@ -140,7 +141,7 @@ class GitProjectAdmin(admin.ModelAdmin):
 
     def pull_git_project(self, request, queryset):
         for q in queryset:
-            result = run_project_command(q.project_id, 'pull')
+            result = run_project_command(q.project_id, 'pull', request.user.pk)
             if result.get('succeed'):
                 messages.add_message(request, messages.INFO, result.get('msg'))
             else:
@@ -148,7 +149,7 @@ class GitProjectAdmin(admin.ModelAdmin):
 
     def remove_local_dir(self, request, queryset):
         for q in queryset:
-            result = run_project_command(q.project_id, 'clean')
+            result = run_project_command(q.project_id, 'clean', request.user.pk)
             if result.get('succeed'):
                 messages.add_message(request, messages.INFO, result.get('msg'))
             else:
@@ -156,7 +157,7 @@ class GitProjectAdmin(admin.ModelAdmin):
 
     def find_playbooks(self, request, queryset):
         for q in queryset:
-            result = run_project_command(q.project_id, 'find')
+            result = run_project_command(q.project_id, 'find', request.user.pk)
             if result.get('succeed'):
                 messages.add_message(request, messages.INFO, result.get('msg'))
             else:
@@ -177,6 +178,47 @@ class ProjectActionLogAdmin(admin.ModelAdmin):
                        'project', 'action_log')
 
 
+class AlertAdmin(admin.ModelAdmin):
+
+    model = Alert
+    search_fields = ('alert_id', )
+    list_display = ('alert_id', 'level', 'owner')
+    filter_horizontal = ('groups', )
+    readonly_fields = ('alert_id', 'owner')
+
+    def save_model(self, request, obj, form, change):
+        obj.owner = request.user
+        super().save_model(request, obj, form, change)
+
+
+class AlertGroupAdmin(admin.ModelAdmin):
+
+    model = AlertGroup
+    search_fields = ('name', )
+    list_display = ('name', 'owner', 'last_modified_time')
+    filter_horizontal = ('users', )
+    readonly_fields = ('owner', 'last_modified_time')
+
+    def save_model(self, request, obj, form, change):
+        obj.owner = request.user
+        super().save_model(request, obj, form, change)
+
+
+class AlertLevelAdmin(admin.ModelAdmin):
+
+    model = AlertLevel
+    search_fields = ('name',)
+    list_display = ('name', 'desc')
+
+
+class AlertLogAdmin(admin.ModelAdmin):
+
+    model = AlertLog
+    search_fields = ('log_id', 'status')
+    list_display = ('log_id', 'status')
+    readonly_fields = ('log_id', 'alert', 'content', 'status')
+
+
 admin.site.register(Inventory, InventoryAdmin)
 admin.site.register(InventoryGroup, InventoryGroupAdmin)
 admin.site.register(AnsiblePlayBook, AnsiblePlayBookAdmin)
@@ -187,3 +229,7 @@ admin.site.register(AnsibleExecLog, AnsibleExecLogAdmin)
 admin.site.register(AnsibleLock, AnsibleLockAdmin)
 admin.site.register(GitProject, GitProjectAdmin)
 admin.site.register(ProjectActionLog, ProjectActionLogAdmin)
+admin.site.register(Alert, AlertAdmin)
+admin.site.register(AlertGroup, AlertGroupAdmin)
+admin.site.register(AlertLevel, AlertLevelAdmin)
+admin.site.register(AlertLog, AlertLogAdmin)

@@ -7,5 +7,7 @@
 # @Software: PyCharm
 
 
-from ops.models.ansible import *  # noqa
-from ops.models.proj import *  # noqa
+from ops.models.ansible import *
+from ops.models.project import *
+from ops.models.alert import *
+from ops.models.schedule import *

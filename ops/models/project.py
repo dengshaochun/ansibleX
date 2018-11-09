@@ -7,7 +7,9 @@
 # @Software: PyCharm
 
 
+import os
 import uuid
+import shutil
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils.translation import ugettext_lazy as _
@@ -18,7 +20,7 @@ class GitProject(models.Model):
 
     project_id = models.UUIDField(_('project uuid'), default=uuid.uuid4())
     name = models.CharField(_('project name'), max_length=50)
-    remote_url = models.URLField(_('project url'))
+    remote_url = models.URLField(_('project url'), unique=True)
     local_dir = models.CharField(_('project local dir'), max_length=100)
     auth_user = models.CharField(_('project auth user'),
                                  max_length=50, blank=True, null=True)
@@ -36,14 +38,17 @@ class GitProject(models.Model):
 
     @property
     def token(self):
-        if self.auth_token:
-            return PrpCrypt().decrypt(self.auth_token)
-        else:
-            return None
+        return PrpCrypt().decrypt(self.auth_token) if self.auth_token else None
 
     @token.setter
-    def token(self, token):
-        self.auth_token = PrpCrypt().encrypt(token)
+    def token(self, value):
+        if value:
+            self.auth_token = PrpCrypt().encrypt(value)
+
+    def delete(self, using=None, keep_parents=False):
+        if os.path.exists(self.local_dir):
+            shutil.rmtree(self.local_dir)
+        super(GitProject, self).delete(using, keep_parents)
 
 
 class ProjectActionLog(models.Model):
@@ -57,12 +62,17 @@ class ProjectActionLog(models.Model):
     log_id = models.UUIDField(_('log uuid'), default=uuid.uuid4())
     project = models.ForeignKey('GitProject',
                                 verbose_name=_('project'),
+                                related_name='project_project_action_log',
                                 on_delete=models.CASCADE)
     action_type = models.CharField(_('action type'), choices=ACTION_TYPES,
                                    max_length=20)
     action_status = models.BooleanField(_('action status'), default=True)
     action_log = models.TextField(_('action log'), blank=True, null=True)
     action_time = models.DateTimeField(_('action time'), auto_now=True)
+    exec_user = models.ForeignKey(User,
+                                  verbose_name=_('project'),
+                                  related_name='user_project_action_log',
+                                  on_delete=models.SET_NULL, null=True)
 
     def __str__(self):
         return '{0}'.format(self.log_id)

@@ -14,7 +14,7 @@ from django.conf import settings
 
 class GitUtil(object):
 
-    def __init__(self, url, username=None, token=None):
+    def __init__(self, url, project_id, username=None, token=None):
         if username and token:
             self.remote_url = '{schema}{username}:{token}@{short_url}'.format(
                 schema=url.split('//')[0] + '//',
@@ -26,7 +26,8 @@ class GitUtil(object):
             self.remote_url = url
         self.project_name = url.split('/')[-1].split('.')[0]
         self.local_path = os.path.join(settings.PROJECT_LOCAL_BASE_DIR,
-                                       self.project_name)
+                                       '{0}-{1}'.format(self.project_name,
+                                                        project_id))
         self._status = {
             'succeed': True,
             'msg': ''

@@ -10,7 +10,8 @@ from django.contrib.auth.models import User
 from django.core.files.base import ContentFile
 
 from assets.models import Asset, AssetGroup, AssetTag
-from ops.models.proj import GitProject
+from ops.models.project import GitProject
+from ops.models.alert import Alert
 from utils.encrypt import PrpCrypt
 
 # Create your models here.
@@ -164,7 +165,8 @@ class AnsibleConfig(models.Model):
 
     @ssh_password.setter
     def ssh_password(self, value):
-        self.ssh_pass = PrpCrypt().encrypt(value)
+        if value:
+            self.ssh_pass = PrpCrypt().encrypt(value)
 
     @property
     def become_password(self):
@@ -172,7 +174,8 @@ class AnsibleConfig(models.Model):
 
     @become_password.setter
     def become_password(self, value):
-        self.become_pass = PrpCrypt().encrypt(value)
+        if value:
+            self.become_pass = PrpCrypt().encrypt(value)
 
     def __str__(self):
         return self.config_name
@@ -244,9 +247,14 @@ class AnsibleScript(models.Model):
                             verbose_name=_('script description'),
                             blank=True, null=True)
     concurrent = models.BooleanField(_('concurrent'), default=False)
+    alert_succeed = models.BooleanField(_('concurrent'), default=False)
+    alert_failed = models.BooleanField(_('concurrent'), default=True)
+    alert = models.ForeignKey(Alert, verbose_name=_('alert'),
+                              on_delete=models.SET_NULL, null=True,
+                              related_name='alert_ansible_scrpit')
     owner = models.ForeignKey(User, verbose_name=_('owner'),
-                              on_delete=models.SET_NULL,
-                              null=True)
+                              on_delete=models.SET_NULL, null=True,
+                              related_name='owner_ansible_script')
 
     def get_json_extra_vars(self):
         return convert_json_to_dict(self.extra_vars) if self.extra_vars else {}
@@ -277,9 +285,14 @@ class AnsiblePlayBook(models.Model):
                                  blank=True, null=True)
     concurrent = models.BooleanField(_('concurrent'), default=False)
     public = models.BooleanField(_('public status'), default=False)
+    alert_succeed = models.BooleanField(_('concurrent'), default=False)
+    alert_failed = models.BooleanField(_('concurrent'), default=True)
+    alert = models.ForeignKey(Alert, verbose_name=_('alert'),
+                              on_delete=models.SET_NULL, null=True,
+                              related_name='alert_ansible_playbook')
     owner = models.ForeignKey(User, verbose_name=_('owner'),
-                              on_delete=models.SET_NULL,
-                              null=True)
+                              on_delete=models.SET_NULL, null=True,
+                              related_name='owner_ansible_playbook')
 
     def get_json_extra_vars(self):
         _extra_vars = convert_json_to_dict(self.extra_vars) \
@@ -312,6 +325,8 @@ class AnsibleExecLog(models.Model):
     full_log = models.FileField(upload_to='logs/ansible/%Y%m/full/',
                                 verbose_name=_('full log file path'),
                                 blank=True, null=True)
+    exec_user = models.ForeignKey(User, verbose_name=_('exec_user'),
+                                  on_delete=models.SET_NULL, null=True)
     create_time = models.DateTimeField(_('create time'), auto_now_add=True)
 
     @property
@@ -328,8 +343,9 @@ class AnsibleExecLog(models.Model):
 
     @completed_log.setter
     def completed_log(self, value):
-        self.full_log.save(self.log_id,
-                           ContentFile(json.dumps(value, indent=4)))
+        if value:
+            self.full_log.save(self.log_id,
+                               ContentFile(json.dumps(value, indent=4)))
 
     def __str__(self):
         return '{0}'.format(self.log_id)

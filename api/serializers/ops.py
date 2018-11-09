@@ -68,8 +68,7 @@ class AnsibleLockSerializer(serializers.ModelSerializer):
 
 
 class AnsibleExecLogSerializer(serializers.ModelSerializer):
-    completed_log = serializers.CharField(read_only=True)
 
     class Meta:
         model = AnsibleExecLog
-        exclude = ('full_log', )
+        fields = '__all__'

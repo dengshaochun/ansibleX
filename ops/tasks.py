@@ -15,6 +15,7 @@ import datetime
 from utils.git_api import GitUtil
 from celery import shared_task
 from django.conf import settings
+from django.contrib.auth.models import User
 from utils.ansible_api_v2.runner import AdHocRunner, PlaybookRunner
 from ops.models import (Inventory, AnsiblePlayBook, AnsibleScript,
                         AnsibleLock, AnsibleExecLog, AnsibleConfig,
@@ -24,7 +25,10 @@ from utils.ansible_api_v2.display import MyDisplay
 logger = logging.getLogger(__name__)
 
 
-def check_ready(ansible_type, object_id, display):
+def ansible_run_before(**kwargs):
+    ansible_type = kwargs.get('ansible_type')
+    object_id = kwargs.get('object_id')
+    display = kwargs.get('display')
     if ansible_type == 'script':
         obj = AnsibleScript.objects.get(script_id=object_id)
     elif ansible_type == 'playbook':
@@ -35,22 +39,25 @@ def check_ready(ansible_type, object_id, display):
     if not obj.concurrent:
         while True:
             lock = AnsibleLock.objects.filter(ansible_type=ansible_type,
-                                              running_id=object_id).first()
+                                              lock_object_id=object_id).first()
             if not lock:
                 break
             display.display('Another same {0} is running, waiting...'.format(
                 ansible_type))
             time.sleep(10)
 
-    AnsibleLock(ansible_type=ansible_type, running_id=object_id)
+    AnsibleLock(ansible_type=ansible_type, lock_object_id=object_id)
     display.display(settings.ANSIBLE_TASK_START_PREFIX)
     return obj
 
 
-def release_lock(ansible_type, object_id, display):
+def release_lock(**kwargs):
+    ansible_type = kwargs.get('ansible_type')
+    object_id = kwargs.get('object_id')
+    display = kwargs.get('display')
     try:
         lock = AnsibleLock.objects.filter(ansible_type=ansible_type,
-                                          running_id=object_id).first()
+                                          lock_object_id=object_id).first()
         if lock:
             lock.delete()
         display.display(settings.ANSIBLE_TASK_END_PREFIX)
@@ -58,27 +65,44 @@ def release_lock(ansible_type, object_id, display):
         logger.exception(e)
 
 
-def save_execute_log(**kwargs):
+def ansible_run_end(**kwargs):
+
+    message_template = r'''
+    [task type]: {ansible_type}
+    [task status]: {succeed}
+    [task execute user]: {exec_user}
+    [task log url]: {full_log}
+    '''
 
     try:
-        tmp_log = AnsibleExecLog(
+        log_obj = AnsibleExecLog(
             log_id=kwargs.get('log_id'),
             ansible_type=kwargs.get('ansible_type'),
             object_id=kwargs.get('object_id'),
             inventory_id=kwargs.get('inventory_id'),
             config_id=kwargs.get('config_id'),
-            succeed=kwargs.get('succeed')
+            succeed=kwargs.get('succeed'),
+            user_raw=kwargs.get('user_input'),
+            completed_log=kwargs.get('result'),
+            exec_user=kwargs.get('exec_user')
         )
-        tmp_log.user_raw = kwargs.get('user_input')
-        tmp_log.completed_log = kwargs.get('full_log')
-        tmp_log.save()
+        log_obj.save()
+        current_obj = kwargs.get('current_obj')
+        if current_obj.alert:
+            if current_obj.alert_succeed or current_obj.alert_failed:
+                send_alert(current_obj.alert.alert_id, message_template.format(
+                    ansible_type=kwargs.get('ansible_type'),
+                    succeed=kwargs.get('succeed'),
+                    exec_user=kwargs.get('exec_user'),
+                    full_log=log_obj.full_log.url
+                ))
     except Exception as e:
         logger.exception(e)
 
 
 @shared_task
-def run_ansible(ansible_type, log_id, object_id, inventory_id, config_id,
-                **user_input):
+def run_ansible(ansible_type, log_id, object_id, inventory_id,
+                config_id, user_id, **user_input):
 
     runner = None
     # current year and month
@@ -87,7 +111,9 @@ def run_ansible(ansible_type, log_id, object_id, inventory_id, config_id,
     log_path = os.path.join(settings.ANSIBLE_BASE_LOG_DIR, yy_mm, log_id)
     # define ansible display
     display = MyDisplay(log_id=log_id, log_path=log_path)
-    current_obj = check_ready(**locals())
+    # define execute user
+    exec_user = User.objects.get(pk=user_id)
+    current_obj = ansible_run_before(**locals())
     inventory_obj = Inventory.objects.get(inventory_id=inventory_id)
     extra_vars = current_obj.get_json_extra_vars()
     if user_input.get('extra_vars'):
@@ -134,12 +160,12 @@ def run_ansible(ansible_type, log_id, object_id, inventory_id, config_id,
     finally:
         release_lock(**locals())
     # save log
-    save_execute_log(**locals())
+    ansible_run_end(**locals())
     return result
 
 
 @shared_task
-def run_project_command(project_id, action_type):
+def run_project_command(project_id, action_type, user_id):
 
     _status = {
         'succeed': False,
@@ -209,7 +235,8 @@ def run_project_command(project_id, action_type):
 
     if project and project.active:
 
-        repo = GitUtil(project.remote_url, project.auth_user, project.token)
+        repo = GitUtil(project.remote_url, project_id,
+                       project.auth_user, project.token)
 
         if action_type == 'clone':
             clone_project()
@@ -227,5 +254,11 @@ def run_project_command(project_id, action_type):
     ProjectActionLog(action_status=_status.get('succeed'),
                      project=project,
                      action_type=action_type,
-                     action_log=_status.get('msg')).save()
+                     action_log=_status.get('msg'),
+                     exec_user=User.objects.get(pk=user_id)).save()
     return _status
+
+
+@shared_task
+def send_alert(alert_id, message):
+    pass

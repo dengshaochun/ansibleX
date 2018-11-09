@@ -20,6 +20,8 @@ class UserProfile(models.Model):
     username = models.CharField(_('username'),
                                 max_length=100,
                                 unique=True)
+    phone = models.CharField(_('phone number'), max_length=20,
+                             blank=True, null=True)
     email = models.EmailField(_('email address'), blank=True, null=True)
     chinese_name = models.CharField(_('chinese name'),
                                     max_length=100,
@@ -38,6 +40,9 @@ class UserProfile(models.Model):
                                        verbose_name=_('create time'))
     last_modified_time = models.DateTimeField(_('last modified time'),
                                               auto_now=True)
+    sys_account = models.ForeignKey(User, verbose_name=_('login user'),
+                                    on_delete=models.SET_NULL, null=True,
+                                    blank=True)
 
 
 class UserGroup(models.Model):
