@@ -247,8 +247,8 @@ class AnsibleScript(models.Model):
                             verbose_name=_('script description'),
                             blank=True, null=True)
     concurrent = models.BooleanField(_('concurrent'), default=False)
-    alert_succeed = models.BooleanField(_('concurrent'), default=False)
-    alert_failed = models.BooleanField(_('concurrent'), default=True)
+    alert_succeed = models.BooleanField(_('alert when succeed'), default=False)
+    alert_failed = models.BooleanField(_('alert when failed'), default=True)
     alert = models.ForeignKey(Alert, verbose_name=_('alert'),
                               on_delete=models.SET_NULL, null=True,
                               related_name='alert_ansible_scrpit')
@@ -285,8 +285,8 @@ class AnsiblePlayBook(models.Model):
                                  blank=True, null=True)
     concurrent = models.BooleanField(_('concurrent'), default=False)
     public = models.BooleanField(_('public status'), default=False)
-    alert_succeed = models.BooleanField(_('concurrent'), default=False)
-    alert_failed = models.BooleanField(_('concurrent'), default=True)
+    alert_succeed = models.BooleanField(_('alert when succeed'), default=False)
+    alert_failed = models.BooleanField(_('alert when failed'), default=True)
     alert = models.ForeignKey(Alert, verbose_name=_('alert'),
                               on_delete=models.SET_NULL, null=True,
                               related_name='alert_ansible_playbook')
@@ -339,12 +339,15 @@ class AnsibleExecLog(models.Model):
 
     @property
     def completed_log(self):
-        return self.full_log
+        if self.full_log:
+            return json.load(open(self.full_log.path, 'r'))
+        else:
+            return {}
 
     @completed_log.setter
     def completed_log(self, value):
         if value:
-            self.full_log.save(self.log_id,
+            self.full_log.save('{0}.json'.format(self.log_id),
                                ContentFile(json.dumps(value, indent=4)))
 
     def __str__(self):

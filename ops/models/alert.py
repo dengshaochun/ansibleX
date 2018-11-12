@@ -15,7 +15,7 @@ from django.utils.translation import ugettext_lazy as _
 
 class Alert(models.Model):
 
-    alert_id = models.UUIDField(_('alert uuid'))
+    name = models.CharField(_('alert name'), unique=True, max_length=50)
     groups = models.ManyToManyField('AlertGroup',
                                     verbose_name=_('alert group'))
     level = models.ForeignKey('AlertLevel', verbose_name=_('alert level'),
@@ -26,7 +26,7 @@ class Alert(models.Model):
                               on_delete=models.CASCADE)
 
     def __str__(self):
-        return '{0}'.format(self.alert_id)
+        return self.name
 
 
 class AlertGroup(models.Model):
@@ -34,7 +34,7 @@ class AlertGroup(models.Model):
     name = models.CharField(_('alert group name'), max_length=50, unique=True)
     users = models.ManyToManyField(User, verbose_name=_('alert user list'))
     last_modified_time = models.DateTimeField(_('last modified time'),
-                                              auto_now_add=True)
+                                              auto_now=True)
     owner = models.ForeignKey(User, verbose_name=_('owner'),
                               on_delete=models.SET_NULL,
                               related_name='owner_alert_group',

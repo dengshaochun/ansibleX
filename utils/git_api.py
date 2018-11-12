@@ -42,7 +42,7 @@ class GitUtil(object):
             self._status['etc'] = {
                 'version': version
             }
-            self._status['msg'] = 'Execute success! current version: {0}'.format(
+            self._status['msg'] = 'clone success, current version: {0}'.format(
                 version)
         except Exception as e:
             self._status['succeed'] = False
@@ -59,7 +59,7 @@ class GitUtil(object):
             self._status['etc'] = {
                 'version': version
             }
-            self._status['msg'] = 'Execute success! current version: {0}'.format(
+            self._status['msg'] = 'pull success, current version: {0}'.format(
                 version)
         except Exception as e:
             self._status['succeed'] = False

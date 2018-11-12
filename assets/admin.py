@@ -19,12 +19,20 @@ class AssetTagAdmin(admin.ModelAdmin):
     search_fields = ('name', 'owner')
     list_display = ('name', 'owner', 'desc')
 
+    def save_model(self, request, obj, form, change):
+        obj.owner = request.user
+        super().save_model(request, obj, form, change)
+
 
 class AssetGroupAdmin(admin.ModelAdmin):
 
     model = AssetGroup
     search_fields = ('name', 'owner')
     list_display = ('name', 'owner', 'desc')
+
+    def save_model(self, request, obj, form, change):
+        obj.owner = request.user
+        super().save_model(request, obj, form, change)
 
 
 class SystemUserAdmin(admin.ModelAdmin):

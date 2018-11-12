@@ -8,7 +8,7 @@ from ops.models import (Inventory, AnsiblePlayBook, AvailableModule,
                         AnsibleExecLog, AnsibleLock, GitProject,
                         ProjectActionLog, Alert, AlertLevel, AlertGroup,
                         AlertLog)
-from ops.tasks import run_project_command
+from ops.tasks import Project
 
 
 class InventoryAdmin(admin.ModelAdmin):
@@ -98,7 +98,7 @@ class AnsibleExecLogAdmin(admin.ModelAdmin):
                     'object_id', 'succeed', 'create_time')
     readonly_fields = ('log_id', 'ansible_type', 'object_id', 'succeed',
                        'create_time', 'full_log', 'user_input', 'config_id',
-                       'inventory_id')
+                       'inventory_id', 'exec_user')
 
 
 class AnsibleLockAdmin(admin.ModelAdmin):
@@ -116,8 +116,8 @@ class GitProjectAdmin(admin.ModelAdmin):
                'find_playbooks']
     search_fields = ('project_id', 'name')
     list_display = ('project_id', 'name', 'current_version', 'owner',
-                    'last_update_time')
-    readonly_fields = ('current_version', 'last_update_time', 'project_id',
+                    'last_modified_time')
+    readonly_fields = ('current_version', 'last_modified_time', 'project_id',
                        'local_dir', 'owner')
 
     def save_model(self, request, obj, form, change):
@@ -133,7 +133,7 @@ class GitProjectAdmin(admin.ModelAdmin):
 
     def clone_git_project(self, request, queryset):
         for q in queryset:
-            result = run_project_command(q.project_id, 'clone', request.user.pk)
+            result = Project(q.project_id, 'clone', request.user.pk).run()
             if result.get('succeed'):
                 messages.add_message(request, messages.INFO, result.get('msg'))
             else:
@@ -141,7 +141,7 @@ class GitProjectAdmin(admin.ModelAdmin):
 
     def pull_git_project(self, request, queryset):
         for q in queryset:
-            result = run_project_command(q.project_id, 'pull', request.user.pk)
+            result = Project(q.project_id, 'pull', request.user.pk).run()
             if result.get('succeed'):
                 messages.add_message(request, messages.INFO, result.get('msg'))
             else:
@@ -149,7 +149,7 @@ class GitProjectAdmin(admin.ModelAdmin):
 
     def remove_local_dir(self, request, queryset):
         for q in queryset:
-            result = run_project_command(q.project_id, 'clean', request.user.pk)
+            result = Project(q.project_id, 'clean', request.user.pk).run()
             if result.get('succeed'):
                 messages.add_message(request, messages.INFO, result.get('msg'))
             else:
@@ -157,7 +157,7 @@ class GitProjectAdmin(admin.ModelAdmin):
 
     def find_playbooks(self, request, queryset):
         for q in queryset:
-            result = run_project_command(q.project_id, 'find', request.user.pk)
+            result = Project(q.project_id, 'find', request.user.pk).run()
             if result.get('succeed'):
                 messages.add_message(request, messages.INFO, result.get('msg'))
             else:
@@ -181,10 +181,10 @@ class ProjectActionLogAdmin(admin.ModelAdmin):
 class AlertAdmin(admin.ModelAdmin):
 
     model = Alert
-    search_fields = ('alert_id', )
-    list_display = ('alert_id', 'level', 'owner')
+    search_fields = ('name', )
+    list_display = ('name', 'level', 'owner')
     filter_horizontal = ('groups', )
-    readonly_fields = ('alert_id', 'owner')
+    readonly_fields = ('owner', )
 
     def save_model(self, request, obj, form, change):
         obj.owner = request.user

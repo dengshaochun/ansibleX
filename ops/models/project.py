@@ -28,8 +28,8 @@ class GitProject(models.Model):
                                   blank=True, null=True)
     current_version = models.CharField(_('current version'), max_length=50)
     active = models.BooleanField(_('active status'), default=True)
-    last_update_time = models.DateTimeField(_('last update time'),
-                                            auto_now_add=True)
+    last_modified_time = models.DateTimeField(_('last update time'),
+                                              auto_now=True)
     owner = models.ForeignKey(User, verbose_name=_('project owner'),
                               on_delete=models.SET_NULL, null=True)
 
@@ -70,7 +70,7 @@ class ProjectActionLog(models.Model):
     action_log = models.TextField(_('action log'), blank=True, null=True)
     action_time = models.DateTimeField(_('action time'), auto_now=True)
     exec_user = models.ForeignKey(User,
-                                  verbose_name=_('project'),
+                                  verbose_name=_('execute user'),
                                   related_name='user_project_action_log',
                                   on_delete=models.SET_NULL, null=True)
 
