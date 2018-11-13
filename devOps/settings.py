@@ -231,6 +231,19 @@ ANSIBLE_BASE_LOG_DIR = os.path.join(MEDIA_ROOT, 'logs', 'ansible')
 PROJECT_LOCAL_BASE_DIR = os.path.join(MEDIA_ROOT, 'repo')
 
 
+# email config
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.163.com')
+EMAIL_PORT = os.environ.get('EMAIL_PORT')
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
+EMAIL_FROM = os.environ.get('EMAIL_FROM')
+
+
+# server config
+SERVER_BASE_URL = os.environ.get('SERVER_BASE_URL', 'http://localhost:8000')
+
+
 # logging
 LOGGING = {
     'version': 1,

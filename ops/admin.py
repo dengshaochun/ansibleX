@@ -7,7 +7,7 @@ from ops.models import (Inventory, AnsiblePlayBook, AvailableModule,
                         AnsibleScript, InventoryGroup, AnsibleConfig,
                         AnsibleExecLog, AnsibleLock, GitProject,
                         ProjectActionLog, Alert, AlertLevel, AlertGroup,
-                        AlertLog)
+                        AlertLog, DingTalk)
 from ops.tasks import Project
 
 
@@ -182,7 +182,7 @@ class AlertAdmin(admin.ModelAdmin):
 
     model = Alert
     search_fields = ('name', )
-    list_display = ('name', 'level', 'owner')
+    list_display = ('name', 'level', 'email', 'ding_talk', 'owner')
     filter_horizontal = ('groups', )
     readonly_fields = ('owner', )
 
@@ -219,6 +219,18 @@ class AlertLogAdmin(admin.ModelAdmin):
     readonly_fields = ('log_id', 'alert', 'content', 'status')
 
 
+class DingTalkAdmin(admin.ModelAdmin):
+
+    model = DingTalk
+    search_fields = ('name', 'url', 'msg_type')
+    list_display = ('name', 'url', 'msg_type', 'at_all', 'owner')
+    readonly_fields = ('owner', )
+
+    def save_model(self, request, obj, form, change):
+        obj.owner = request.user
+        super().save_model(request, obj, form, change)
+
+
 admin.site.register(Inventory, InventoryAdmin)
 admin.site.register(InventoryGroup, InventoryGroupAdmin)
 admin.site.register(AnsiblePlayBook, AnsiblePlayBookAdmin)
@@ -233,3 +245,4 @@ admin.site.register(Alert, AlertAdmin)
 admin.site.register(AlertGroup, AlertGroupAdmin)
 admin.site.register(AlertLevel, AlertLevelAdmin)
 admin.site.register(AlertLog, AlertLogAdmin)
+admin.site.register(DingTalk, DingTalkAdmin)

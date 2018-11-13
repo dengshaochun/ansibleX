@@ -2,21 +2,21 @@ from django.contrib import admin
 
 # Register your models here.
 
-from accounts.models import UserProfile, UserGroup
+from accounts.models import Profile, ProfileGroup
 
 
-class UserProfileAdmin(admin.ModelAdmin):
+class ProfileAdmin(admin.ModelAdmin):
 
-    model = UserProfile
+    model = Profile
     search_fields = ('user_id', 'username')
     list_display = ('user_id', 'username', 'chinese_name', 'active')
 
 
-class UserGroupAdmin(admin.ModelAdmin):
+class ProfileGroupAdmin(admin.ModelAdmin):
 
-    model = UserGroup
+    model = ProfileGroup
     search_fields = ('name', )
     list_display = ('name', 'desc', 'create_time')
 
-admin.site.register(UserProfile, UserProfileAdmin)
-admin.site.register(UserGroup, UserGroupAdmin)
+admin.site.register(Profile, ProfileAdmin)
+admin.site.register(ProfileGroup, ProfileGroupAdmin)

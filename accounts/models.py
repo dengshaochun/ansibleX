@@ -6,7 +6,7 @@ from django.utils.translation import ugettext_lazy as _
 # Create your models here.
 
 
-class UserProfile(models.Model):
+class Profile(models.Model):
     ACCOUNT_CHOICES = (
         (0, 'private'),
         (1, 'public'),
@@ -40,14 +40,14 @@ class UserProfile(models.Model):
                                        verbose_name=_('create time'))
     last_modified_time = models.DateTimeField(_('last modified time'),
                                               auto_now=True)
-    sys_account = models.ForeignKey(User, verbose_name=_('login user'),
-                                    on_delete=models.SET_NULL, null=True,
-                                    blank=True)
+    sys_account = models.OneToOneField(User, verbose_name=_('django user'),
+                                       on_delete=models.SET_NULL, null=True,
+                                       blank=True)
 
 
-class UserGroup(models.Model):
+class ProfileGroup(models.Model):
 
-    name = models.CharField(_('account group name'),
+    name = models.CharField(_('profile group name'),
                             max_length=100,
                             unique=True)
     create_time = models.DateTimeField(auto_now_add=True,

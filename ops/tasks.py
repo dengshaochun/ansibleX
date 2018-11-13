@@ -8,10 +8,14 @@
 
 import os
 import time
+import json
 import yaml
+import markdown
+import requests
 import shutil
 import logging
 import datetime
+from django.core.mail import EmailMultiAlternatives
 from utils.git_api import GitUtil
 from celery import shared_task
 from django.conf import settings
@@ -19,7 +23,7 @@ from django.contrib.auth.models import User
 from utils.ansible_api_v2.runner import AdHocRunner, PlaybookRunner
 from ops.models import (Inventory, AnsiblePlayBook, AnsibleScript,
                         AnsibleLock, AnsibleExecLog, AnsibleConfig,
-                        GitProject, ProjectActionLog)
+                        GitProject, ProjectActionLog, Alert, AlertLog)
 from utils.ansible_api_v2.display import MyDisplay
 
 logger = logging.getLogger(__name__)
@@ -163,12 +167,12 @@ class Ansible(object):
 
     def _send_alert(self):
 
-        message_template = r'''
-        [task type]: {ansible_type}
-        [task status]: {succeed}
-        [task execute user]: {exec_user}
-        [task log url]: {full_log}
-        '''
+        markdown_template = '### Alert Information\n' + \
+                            '- **Ansible type**: {ansible_type}\n' + \
+                            '- **Object id**: {object_id}\n' + \
+                            '- **Execute user**: {exec_user}\n' + \
+                            '- **Detail log**: [detail]({full_log})\n' + \
+                            '- **Succeed**: {succeed}'
 
         # send alert
         if self.current_obj.alert and self.log_obj:
@@ -176,12 +180,16 @@ class Ansible(object):
                     self.current_obj.alert_failed:
                 run_alert_task(
                     self.current_obj.alert.name,
-                    message_template.format(
+                    markdown_template.format(
                         ansible_type=self.ansible_type,
+                        object_id=self.object_id,
                         succeed=self.succeed,
                         exec_user=self.exec_user,
-                        full_log=self.log_obj.full_log.url
-                    ))
+                        full_log='{0}{1}'.format(
+                            settings.SERVER_BASE_URL,
+                            self.log_obj.full_log.url)
+                    )
+                )
 
     def _run_end(self):
         self._release_lock()
@@ -296,6 +304,101 @@ class Project(object):
         return self._status
 
 
+class AlertSender(object):
+
+    def __init__(self, alert_name, message):
+        self.alert_obj = Alert.objects.get(name=alert_name)
+        self.ding_talk = self.alert_obj.ding_talk
+        self.email = self.alert_obj.email
+        self.message = message
+        self.alert_users = []
+        self.subject = '[{0} Alert] - from devOps'.format(
+            self.alert_obj.level.name)
+        self.status = False
+        self.html_message = markdown.markdown(message)
+
+        self._get_alert_users()
+
+    def _get_alert_users(self):
+        for group in self.alert_obj.groups.all():
+            for user in group.users.all():
+                if user.profile.active:
+                    self.alert_users.append(user.profile)
+
+    def _send_email(self):
+        email_users = [x.email for x in self.alert_users if x.email]
+        msg = EmailMultiAlternatives(self.subject,
+                                     'receive new alert',
+                                     settings.EMAIL_FROM,
+                                     email_users)
+        msg.attach_alternative(self.html_message, 'text/html')
+        msg.send()
+
+    def _send_ding_talk(self):
+        result = requests.post(
+            url=self.ding_talk.url,
+            headers={'Content-Type': 'application/json'},
+            data=self._get_ding_talk_data()
+        )
+        result.raise_for_status()
+
+    def _get_ding_talk_data(self):
+
+        at_dict = {
+            'atMobiles': None,
+            'isAtAll': 'false'
+        }
+
+        text_dict = {
+            'msgtype': 'text',
+            'text': {
+                'content': None
+            },
+            'at': None
+        }
+
+        markdown_dict = {
+            'msgtype': 'markdown',
+            'markdown': {
+                'title': None,
+                'text': None
+            },
+            'at': None
+        }
+
+        mobiles = [x.phone for x in self.alert_users if x.phone]
+        at_content = '\n \n \n' + ' '.join(['@{0}'.format(x) for x in mobiles])
+        at_dict['atMobiles'] = mobiles
+        if self.ding_talk.at_all:
+            at_dict['isAtAll'] = 'true'
+
+        if self.ding_talk.msg_type == 'markdown':
+            markdown_dict['markdown']['title'] = self.subject
+            markdown_dict['markdown']['text'] = self.message + at_content
+            content = markdown_dict
+        else:
+            text_dict['text']['content'] = self.html_message + at_content
+            content = text_dict
+        content['at'] = at_dict
+
+        return json.dumps(content)
+
+    def run(self):
+        try:
+            if self.email:
+                self._send_email()
+            if self.ding_talk:
+                self._send_ding_talk()
+            self.status = True
+        except Exception as e:
+            logger.exception(e)
+            self.status = False
+        finally:
+            AlertLog(alert=self.alert_obj,
+                     content=self.message, status=self.status).save()
+        return self.status
+
+
 @shared_task
 def run_ansible_task(ansible_type, log_id, object_id, inventory_id,
                      config_id, user_id, **user_input):
@@ -310,4 +413,4 @@ def run_project_task(project_id, action_type, user_id):
 
 @shared_task
 def run_alert_task(alert_name, message):
-    pass
+    return AlertSender(alert_name, message).run()

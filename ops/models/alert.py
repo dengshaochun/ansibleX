@@ -19,10 +19,16 @@ class Alert(models.Model):
     groups = models.ManyToManyField('AlertGroup',
                                     verbose_name=_('alert group'))
     level = models.ForeignKey('AlertLevel', verbose_name=_('alert level'),
-                              related_name='level_alert',
+                              related_name='level_alerts',
                               on_delete=models.CASCADE)
+    ding_talk = models.ForeignKey('DingTalk',
+                                  verbose_name=_('send ding talk'),
+                                  related_name='ding_talk_alerts',
+                                  on_delete=models.SET_NULL,
+                                  null=True, blank=True)
+    email = models.BooleanField(_('send email'), default=True)
     owner = models.ForeignKey(User, verbose_name=_('owner'),
-                              related_name='owner_alert',
+                              related_name='owner_alerts',
                               on_delete=models.CASCADE)
 
     def __str__(self):
@@ -63,3 +69,21 @@ class AlertLog(models.Model):
 
     def __str__(self):
         return '{0}'.format(self.log_id)
+
+
+class DingTalk(models.Model):
+    MSG_TYPES = (
+        ('text', 'text'),
+        ('markdown', 'markdown')
+    )
+
+    name = models.CharField(_('config name'), max_length=50, unique=True)
+    url = models.URLField(_('ding talk request url'))
+    msg_type = models.CharField(_('message type'), choices=MSG_TYPES,
+                                default='markdown', max_length=20)
+    at_all = models.BooleanField(_('@all'), default=False)
+    owner = models.ForeignKey(User, verbose_name=_('owner'),
+                              on_delete=models.SET_NULL, null=True, blank=True)
+
+    def __str__(self):
+        return self.name
