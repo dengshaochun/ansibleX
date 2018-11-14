@@ -5,10 +5,10 @@ from django.contrib import messages
 
 from ops.models import (Inventory, AnsiblePlayBook, AvailableModule,
                         AnsibleScript, InventoryGroup, AnsibleConfig,
-                        AnsibleExecLog, AnsibleLock, GitProject,
-                        ProjectActionLog, Alert, AlertLevel, AlertGroup,
-                        AlertLog, DingTalk)
-from ops.tasks import Project
+                        AnsibleScriptTask, AnsiblePlayBookTask,
+                        AnsibleLock, GitProject,
+                        ProjectTask, Alert, AlertLevel, AlertGroup,
+                        AlertLog, DingTalk, UserSchedule)
 
 
 class InventoryAdmin(admin.ModelAdmin):
@@ -35,9 +35,9 @@ class InventoryGroupAdmin(admin.ModelAdmin):
 class AnsiblePlayBookAdmin(admin.ModelAdmin):
 
     model = AnsiblePlayBook
-    search_fields = ('playbook_id', 'name')
-    list_display = ('playbook_id', 'name', 'concurrent', 'owner')
-    readonly_fields = ('playbook_id', 'owner')
+    search_fields = ('instance_id', 'name')
+    list_display = ('instance_id', 'name', 'concurrent', 'owner')
+    readonly_fields = ('instance_id', 'owner')
 
     def save_model(self, request, obj, form, change):
         obj.owner = request.user
@@ -59,9 +59,9 @@ class AvailableModuleAdmin(admin.ModelAdmin):
 class AnsibleScriptAdmin(admin.ModelAdmin):
 
     model = AnsibleScript
-    search_fields = ('script_id', 'name')
-    list_display = ('script_id', 'name', 'concurrent', 'owner')
-    readonly_fields = ('script_id', 'owner')
+    search_fields = ('instance_id', 'name')
+    list_display = ('instance_id', 'name', 'concurrent', 'owner')
+    readonly_fields = ('instance_id', 'owner')
 
     def save_model(self, request, obj, form, change):
         obj.owner = request.user
@@ -90,30 +90,40 @@ class AnsibleConfigAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
 
 
-class AnsibleExecLogAdmin(admin.ModelAdmin):
+class AnsibleScriptTaskAdmin(admin.ModelAdmin):
 
-    model = AnsibleExecLog
-    search_fields = ('log_id', 'ansible_type', 'object_id', 'succeed')
-    list_display = ('log_id', 'ansible_type',
-                    'object_id', 'succeed', 'create_time')
-    readonly_fields = ('log_id', 'ansible_type', 'object_id', 'succeed',
-                       'create_time', 'full_log', 'user_input', 'config_id',
-                       'inventory_id', 'exec_user')
+    model = AnsibleScriptTask
+    search_fields = ('task_id', )
+    list_display = ('task_id', 'owner', 'created_time')
+    readonly_fields = ('task_id', 'created_time', 'owner')
+
+    def save_model(self, request, obj, form, change):
+        obj.owner = request.user
+        super().save_model(request, obj, form, change)
+
+
+class AnsiblePlayBookTaskAdmin(admin.ModelAdmin):
+    model = AnsiblePlayBookTask
+    search_fields = ('task_id', )
+    list_display = ('task_id', 'owner', 'created_time')
+    readonly_fields = ('task_id', 'created_time',  'owner')
+
+    def save_model(self, request, obj, form, change):
+        obj.owner = request.user
+        super().save_model(request, obj, form, change)
 
 
 class AnsibleLockAdmin(admin.ModelAdmin):
 
     model = AnsibleLock
-    search_fields = ('ansible_type', 'lock_object_id')
-    list_display = ('ansible_type', 'lock_object_id', 'create_time')
-    readonly_fields = ('ansible_type', 'lock_object_id', 'create_time')
+    search_fields = ('lock_object_id', )
+    list_display = ('lock_object_id', 'created_time')
+    readonly_fields = ('lock_object_id', 'created_time')
 
 
 class GitProjectAdmin(admin.ModelAdmin):
 
     model = GitProject
-    actions = ['clone_git_project', 'pull_git_project', 'remove_local_dir',
-               'find_playbooks']
     search_fields = ('project_id', 'name')
     list_display = ('project_id', 'name', 'current_version', 'owner',
                     'last_modified_time')
@@ -131,51 +141,13 @@ class GitProjectAdmin(admin.ModelAdmin):
         obj.owner = request.user
         super().save_model(request, obj, form, change)
 
-    def clone_git_project(self, request, queryset):
-        for q in queryset:
-            result = Project(q.project_id, 'clone', request.user.pk).run()
-            if result.get('succeed'):
-                messages.add_message(request, messages.INFO, result.get('msg'))
-            else:
-                messages.add_message(request, messages.ERROR, result.get('msg'))
 
-    def pull_git_project(self, request, queryset):
-        for q in queryset:
-            result = Project(q.project_id, 'pull', request.user.pk).run()
-            if result.get('succeed'):
-                messages.add_message(request, messages.INFO, result.get('msg'))
-            else:
-                messages.add_message(request, messages.ERROR, result.get('msg'))
+class ProjectTaskAdmin(admin.ModelAdmin):
 
-    def remove_local_dir(self, request, queryset):
-        for q in queryset:
-            result = Project(q.project_id, 'clean', request.user.pk).run()
-            if result.get('succeed'):
-                messages.add_message(request, messages.INFO, result.get('msg'))
-            else:
-                messages.add_message(request, messages.ERROR, result.get('msg'))
-
-    def find_playbooks(self, request, queryset):
-        for q in queryset:
-            result = Project(q.project_id, 'find', request.user.pk).run()
-            if result.get('succeed'):
-                messages.add_message(request, messages.INFO, result.get('msg'))
-            else:
-                messages.add_message(request, messages.ERROR, result.get('msg'))
-
-    clone_git_project.short_description = 'clone project'
-    pull_git_project.short_description = 'pull project'
-    remove_local_dir.short_description = 'remove local dir'
-    find_playbooks.short_description = 'find playbooks'
-
-
-class ProjectActionLogAdmin(admin.ModelAdmin):
-
-    model = ProjectActionLog
-    search_fields = ('log_id', 'action_type', 'action_status')
-    list_display = ('log_id', 'action_type', 'action_status', 'action_time')
-    readonly_fields = ('log_id', 'action_type', 'action_status', 'action_time',
-                       'project', 'action_log')
+    model = ProjectTask
+    search_fields = ('task_id', 'action_type')
+    list_display = ('task_id', 'action_type', 'created_time')
+    readonly_fields = ('task_id', 'created_time')
 
 
 class AlertAdmin(admin.ModelAdmin):
@@ -231,18 +203,30 @@ class DingTalkAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
 
 
+class UserScheduleAdmin(admin.ModelAdmin):
+
+    model = UserSchedule
+    readonly_fields = ('owner', 'created_time')
+
+    def save_model(self, request, obj, form, change):
+        obj.owner = request.user
+        super().save_model(request, obj, form, change)
+
+
 admin.site.register(Inventory, InventoryAdmin)
 admin.site.register(InventoryGroup, InventoryGroupAdmin)
 admin.site.register(AnsiblePlayBook, AnsiblePlayBookAdmin)
 admin.site.register(AvailableModule, AvailableModuleAdmin)
 admin.site.register(AnsibleScript, AnsibleScriptAdmin)
 admin.site.register(AnsibleConfig, AnsibleConfigAdmin)
-admin.site.register(AnsibleExecLog, AnsibleExecLogAdmin)
+admin.site.register(AnsibleScriptTask, AnsibleScriptTaskAdmin)
+admin.site.register(AnsiblePlayBookTask, AnsiblePlayBookTaskAdmin)
 admin.site.register(AnsibleLock, AnsibleLockAdmin)
 admin.site.register(GitProject, GitProjectAdmin)
-admin.site.register(ProjectActionLog, ProjectActionLogAdmin)
+admin.site.register(ProjectTask, ProjectTaskAdmin)
 admin.site.register(Alert, AlertAdmin)
 admin.site.register(AlertGroup, AlertGroupAdmin)
 admin.site.register(AlertLevel, AlertLevelAdmin)
 admin.site.register(AlertLog, AlertLogAdmin)
 admin.site.register(DingTalk, DingTalkAdmin)
+admin.site.register(UserSchedule, UserScheduleAdmin)

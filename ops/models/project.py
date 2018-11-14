@@ -51,7 +51,8 @@ class GitProject(models.Model):
         super(GitProject, self).delete(using, keep_parents)
 
 
-class ProjectActionLog(models.Model):
+class ProjectTask(models.Model):
+
     ACTION_TYPES = (
         ('clone', 'clone'),
         ('pull', 'pull'),
@@ -59,20 +60,30 @@ class ProjectActionLog(models.Model):
         ('find', 'find')
     )
 
-    log_id = models.UUIDField(_('log uuid'), default=uuid.uuid4())
+    task_id = models.UUIDField(_('task id'), default=uuid.uuid4())
     project = models.ForeignKey('GitProject',
                                 verbose_name=_('project'),
                                 related_name='project_project_action_log',
                                 on_delete=models.CASCADE)
     action_type = models.CharField(_('action type'), choices=ACTION_TYPES,
                                    max_length=20)
-    action_status = models.BooleanField(_('action status'), default=True)
-    action_log = models.TextField(_('action log'), blank=True, null=True)
-    action_time = models.DateTimeField(_('action time'), auto_now=True)
-    exec_user = models.ForeignKey(User,
-                                  verbose_name=_('execute user'),
-                                  related_name='user_project_action_log',
-                                  on_delete=models.SET_NULL, null=True)
+    run = models.BooleanField(_('run celery task'), default=True)
+    owner = models.ForeignKey(User,
+                              verbose_name=_('execute user'),
+                              related_name='owner_project_tasks',
+                              on_delete=models.SET_NULL, null=True)
+    created_time = models.DateTimeField(_('created time'), auto_now_add=True)
 
     def __str__(self):
-        return '{0}'.format(self.log_id)
+        return '{0}'.format(self.task_id)
+
+
+class ProjectTaskLog(models.Model):
+
+    task = models.ForeignKey('ProjectTask', verbose_name=_('task'),
+                             on_delete=models.SET_NULL, null=True)
+    succeed = models.BooleanField(_('task status'), default=True)
+    task_log = models.TextField(_('task log'), blank=True, null=True)
+
+    def __str__(self):
+        return '{0} {1}'.format(self.task, self.succeed)

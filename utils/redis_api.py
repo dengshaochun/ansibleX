@@ -61,3 +61,11 @@ class RedisQueue(object):
         except Exception as e:
             logger.exception(e)
             return False
+
+    def expire(self, exp):
+        """ Expire key"""
+        try:
+            return self.__db.expire(self.key, exp)
+        except Exception as e:
+            logger.exception(e)
+            return False

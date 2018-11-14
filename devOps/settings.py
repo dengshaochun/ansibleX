@@ -222,6 +222,7 @@ CELERYD_MAX_TASKS_PER_CHILD = 200  # 每个worker执行了多少任务就会死�
 AES_SECRET_KEY = SECRET_KEY[:16]
 
 # Ansible task end prefix
+ANSIBLE_RESULT_CACHE_EXPIRE = 24 * 60 * 60
 ANSIBLE_TASK_START_PREFIX = '>> Start <<'
 ANSIBLE_TASK_END_PREFIX = '>> All done <<'
 ANSIBLE_BASE_LOG_DIR = os.path.join(MEDIA_ROOT, 'logs', 'ansible')

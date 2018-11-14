@@ -16,12 +16,6 @@ from utils.encrypt import PrpCrypt
 
 # Create your models here.
 
-ANSIBLE_EXEC_TYPES = (
-    ('script', 'script'),
-    ('playbook', 'playbook'),
-    ('other', 'other')
-)
-
 
 def validate_dict_format(value):
     """
@@ -227,34 +221,24 @@ class AvailableModule(models.Model):
         return self.name
 
 
-class AnsibleScript(models.Model):
+class AnsibleBase(models.Model):
 
-    script_id = models.UUIDField(default=uuid.uuid4,
-                                 verbose_name=_('module uuid'), unique=True)
+    instance_id = models.UUIDField(default=uuid.uuid4(),
+                                   verbose_name=_('instance uuid'), unique=True)
     name = models.CharField(max_length=50,
-                            verbose_name=_('user module name'))
-    ansible_module = models.ForeignKey('AvailableModule',
-                                       verbose_name=_('ansible module'),
-                                       on_delete=models.CASCADE,
-                                       null=True)
-    module_args = models.CharField(verbose_name=_('script args'),
-                                   max_length=500,
-                                   blank=True, null=True)
-    extra_vars = models.TextField(verbose_name=_('script extra vars'),
+                            verbose_name=_('object name'))
+    extra_vars = models.TextField(verbose_name=_('instance extra vars'),
                                   blank=True, null=True,
                                   validators=[validate_dict_format, ])
     desc = models.CharField(max_length=200,
-                            verbose_name=_('script description'),
+                            verbose_name=_('instance description'),
                             blank=True, null=True)
     concurrent = models.BooleanField(_('concurrent'), default=False)
     alert_succeed = models.BooleanField(_('alert when succeed'), default=False)
     alert_failed = models.BooleanField(_('alert when failed'), default=True)
-    alert = models.ForeignKey(Alert, verbose_name=_('alert'),
-                              on_delete=models.SET_NULL, null=True,
-                              related_name='alert_ansible_scrpit')
-    owner = models.ForeignKey(User, verbose_name=_('owner'),
-                              on_delete=models.SET_NULL, null=True,
-                              related_name='owner_ansible_script')
+
+    class Meta:
+        abstract = True
 
     def get_json_extra_vars(self):
         return convert_json_to_dict(self.extra_vars) if self.extra_vars else {}
@@ -263,36 +247,40 @@ class AnsibleScript(models.Model):
         return self.name
 
 
-class AnsiblePlayBook(models.Model):
+class AnsibleScript(AnsibleBase):
 
-    playbook_id = models.UUIDField(default=uuid.uuid4,
-                                   verbose_name=_('playbook uuid'), unique=True)
-    name = models.CharField(max_length=50,
-                            verbose_name=_('playbook name'))
+    ansible_module = models.ForeignKey('AvailableModule',
+                                       verbose_name=_('ansible module'),
+                                       on_delete=models.CASCADE,
+                                       null=True)
+    module_args = models.CharField(verbose_name=_('script args'),
+                                   max_length=500,
+                                   blank=True, null=True)
+    alert = models.ForeignKey(Alert, verbose_name=_('alert'),
+                              on_delete=models.SET_NULL, null=True,
+                              related_name='alert_ansible_scripts')
+    owner = models.ForeignKey(User, verbose_name=_('owner'),
+                              on_delete=models.SET_NULL, null=True,
+                              related_name='owner_ansible_scripts')
+
+
+class AnsiblePlayBook(AnsibleBase):
+
     project = models.ForeignKey(GitProject, verbose_name=_('project'),
                                 on_delete=models.SET_NULL,
                                 blank=True, null=True)
-    desc = models.CharField(max_length=200,
-                            verbose_name=_('playbook description'),
-                            blank=True, null=True)
-    extra_vars = models.TextField(verbose_name=_('playbook vars'),
-                                  blank=True, null=True,
-                                  validators=[validate_dict_format, ])
     file_path = models.FileField(upload_to='playbooks',
                                  verbose_name=_('playbook file path'))
     role_path = models.CharField(max_length=200,
                                  verbose_name=_('playbook role path'),
                                  blank=True, null=True)
-    concurrent = models.BooleanField(_('concurrent'), default=False)
     public = models.BooleanField(_('public status'), default=False)
-    alert_succeed = models.BooleanField(_('alert when succeed'), default=False)
-    alert_failed = models.BooleanField(_('alert when failed'), default=True)
     alert = models.ForeignKey(Alert, verbose_name=_('alert'),
                               on_delete=models.SET_NULL, null=True,
-                              related_name='alert_ansible_playbook')
+                              related_name='alert_ansible_playbooks')
     owner = models.ForeignKey(User, verbose_name=_('owner'),
                               on_delete=models.SET_NULL, null=True,
-                              related_name='owner_ansible_playbook')
+                              related_name='owner_ansible_playbooks')
 
     def get_json_extra_vars(self):
         _extra_vars = convert_json_to_dict(self.extra_vars) \
@@ -301,68 +289,110 @@ class AnsiblePlayBook(models.Model):
             _extra_vars.update({'role_path': self.role_path})
         return _extra_vars
 
-    def __str__(self):
-        return self.name
 
+class AnsibleTask(models.Model):
 
-class AnsibleExecLog(models.Model):
+    task_id = models.UUIDField(default=uuid.uuid4(),
+                               verbose_name=_('task id'), unique=True)
+    run = models.BooleanField(_('run celery task'), default=True)
+    user_input = models.TextField(_('user input kwargs'), blank=True, null=True,
+                                  validators=[validate_dict_format, ])
+    created_time = models.DateTimeField(_('created time'), auto_now_add=True)
 
-    log_id = models.UUIDField(default=uuid.uuid4,
-                              verbose_name=_('log uuid'), unique=True)
-    ansible_type = models.CharField(_('ansible type'), max_length=20,
-                                    choices=ANSIBLE_EXEC_TYPES)
-    object_id = models.CharField(verbose_name=_('execute object id'),
-                                 max_length=100,
-                                 null=True)
-    inventory_id = models.CharField(verbose_name=_('execute inventory id'),
-                                    max_length=100,
-                                    null=True)
-    config_id = models.CharField(verbose_name=_('config id'),
-                                 max_length=100,
-                                 null=True)
-    user_input = models.TextField(_('user input args'), blank=True, null=True)
-    succeed = models.BooleanField(_('result status'), default=True)
-    full_log = models.FileField(upload_to='logs/ansible/%Y%m/full/',
-                                verbose_name=_('full log file path'),
-                                blank=True, null=True)
-    exec_user = models.ForeignKey(User, verbose_name=_('exec_user'),
-                                  on_delete=models.SET_NULL, null=True)
-    create_time = models.DateTimeField(_('create time'), auto_now_add=True)
+    class Meta:
+        abstract = True
 
-    @property
-    def user_raw(self):
+    def get_json_user_input(self):
         return convert_json_to_dict(self.user_input) if self.user_input else {}
 
-    @user_raw.setter
-    def user_raw(self, value):
-        self.user_input = yaml.dump(value)
+    def __str__(self):
+        return '{0}'.format(self.task_id)
+
+
+class AnsiblePlayBookTask(AnsibleTask):
+
+    instance = models.ForeignKey('AnsiblePlayBook',
+                                 verbose_name=_('ansible playbook'),
+                                 on_delete=models.CASCADE)
+    inventory = models.ForeignKey(
+        'Inventory',
+        verbose_name=_('ansible inventory'),
+        related_name='inventory_ansible_playbook_tasks',
+        on_delete=models.SET_NULL, null=True)
+    config = models.ForeignKey('AnsibleConfig',
+                               verbose_name=_('ansible config'),
+                               related_name='config_ansible_playbook_tasks',
+                               on_delete=models.SET_NULL, null=True)
+    owner = models.ForeignKey(User, verbose_name=_('execute user'),
+                              on_delete=models.SET_NULL,
+                              related_name='owner_ansible_playbook_tasks',
+                              null=True)
+
+
+class AnsibleScriptTask(AnsibleTask):
+
+    instance = models.ForeignKey('AnsibleScript',
+                                 verbose_name=_('ansible script'),
+                                 on_delete=models.CASCADE)
+    inventory = models.ForeignKey('Inventory',
+                                  verbose_name=_('ansible inventory'),
+                                  related_name='inventory_ansible_script_tasks',
+                                  on_delete=models.SET_NULL, null=True)
+    config = models.ForeignKey('AnsibleConfig',
+                               verbose_name=_('ansible config'),
+                               related_name='config_ansible_script_tasks',
+                               on_delete=models.SET_NULL, null=True)
+    owner = models.ForeignKey(User, verbose_name=_('execute user'),
+                              on_delete=models.SET_NULL,
+                              related_name='owner_ansible_script_tasks',
+                              null=True)
+
+
+class AnsibleLog(models.Model):
+
+    log_id = models.UUIDField(_('log id'), default=uuid.uuid4())
+    succeed = models.BooleanField(_('result status'), default=True)
+    task_log = models.FileField(upload_to='logs/ansible/%Y%m/full/',
+                                verbose_name=_('task log'),
+                                blank=True, null=True)
 
     @property
     def completed_log(self):
-        if self.full_log:
-            return json.load(open(self.full_log.path, 'r'))
+        if self.task_log:
+            return json.load(open(self.task_log.path, 'r'))
         else:
             return {}
 
     @completed_log.setter
     def completed_log(self, value):
         if value:
-            self.full_log.save('{0}.json'.format(self.log_id),
+            self.task_log.save('{0}.json'.format(self.log_id),
                                ContentFile(json.dumps(value, indent=4)))
+
+    class Meta:
+        abstract = True
 
     def __str__(self):
         return '{0}'.format(self.log_id)
 
 
+class AnsibleScriptTaskLog(AnsibleLog):
+
+    task = models.ForeignKey('AnsibleScriptTask', verbose_name=_('task'),
+                             on_delete=models.SET_NULL, null=True)
+
+
+class AnsiblePlayBookTaskLog(AnsibleLog):
+
+    task = models.ForeignKey('AnsiblePlayBookTask', verbose_name=_('task'),
+                             on_delete=models.SET_NULL, null=True)
+
+
 class AnsibleLock(models.Model):
 
-    ansible_type = models.CharField(_('ansible type'), max_length=20,
-                                    choices=ANSIBLE_EXEC_TYPES)
-    lock_object_id = models.UUIDField(_('locked object id'))
-    create_time = models.DateTimeField(_('create time'), auto_now_add=True)
-
-    class Meta:
-        unique_together = (('ansible_type', 'lock_object_id'),)
+    lock_object_id = models.CharField(_('locked object id'),
+                                      max_length=100, unique=True)
+    created_time = models.DateTimeField(_('create time'), auto_now_add=True)
 
     def __str__(self):
-        return '{0}:{1}'.format(self.ansible_type, self.lock_object_id)
+        return self.lock_object_id

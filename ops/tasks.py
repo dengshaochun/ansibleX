@@ -9,7 +9,6 @@
 import os
 import time
 import json
-import yaml
 import markdown
 import requests
 import shutil
@@ -19,28 +18,25 @@ from django.core.mail import EmailMultiAlternatives
 from utils.git_api import GitUtil
 from celery import shared_task
 from django.conf import settings
-from django.contrib.auth.models import User
 from utils.ansible_api_v2.runner import AdHocRunner, PlaybookRunner
-from ops.models import (Inventory, AnsiblePlayBook, AnsibleScript,
-                        AnsibleLock, AnsibleExecLog, AnsibleConfig,
-                        GitProject, ProjectActionLog, Alert, AlertLog)
+from ops.models import (AnsiblePlayBook, AnsibleLock, AnsiblePlayBookTask,
+                        AnsibleScriptTask, ProjectTask, Alert, AlertLog,
+                        ProjectTaskLog, AnsibleScriptTaskLog,
+                        AnsiblePlayBookTaskLog)
 from utils.ansible_api_v2.display import MyDisplay
+from utils.redis_api import RedisQueue
 
 logger = logging.getLogger(__name__)
 
 
 class Ansible(object):
 
-    def __init__(self, ansible_type, log_id, object_id, inventory_id,
-                 config_id, user_id, **user_input):
+    def __init__(self, ansible_type, task_id):
 
         self.ansible_type = ansible_type
-        self.log_id = log_id
-        self.object_id = object_id
-        self.user_id = user_id
-        self.config_id = config_id
-        self.user_input = user_input
-        self.inventory_id = inventory_id
+        self.task_id = task_id
+        self.task = None
+        self.extra_vars = {}
 
         self.succeed = False
         self.result = None
@@ -50,56 +46,55 @@ class Ansible(object):
         yy_mm = datetime.datetime.now().strftime('%Y%m')
         # define log path
         self.log_path = os.path.join(settings.ANSIBLE_BASE_LOG_DIR,
-                                     yy_mm, self.log_id)
+                                     yy_mm, self.task_id)
         # define ansible display
-        self.display = MyDisplay(log_id=self.log_id, log_path=self.log_path)
-        # define execute user
-        self.exec_user = User.objects.get(pk=self.user_id)
+        self.display = MyDisplay(log_id=self.task_id, log_path=self.log_path)
 
-        # get ansible object
+        # get ansible instance
         if self.ansible_type == 'script':
-            self.current_obj = AnsibleScript.objects.get(
-                script_id=self.object_id)
-            if self.user_input.get('module_args'):
-                self.module_args = self.user_input.get('module_args')
+            self.task = AnsibleScriptTask.objects.get(task_id=task_id)
+            self.user_raw = self.task.get_json_user_input()
+            if self.user_raw.get('module_args'):
+                self.module_args = self.user_raw.get('module_args')
             else:
-                self.module_args = self.current_obj.module_args
+                self.module_args = self.task.instance.module_args
         elif self.ansible_type == 'playbook':
-            self.current_obj = AnsiblePlayBook.objects.get(
-                playbook_id=self.object_id)
+            self.task = AnsiblePlayBookTask.objects.get(task_id=self.task_id)
+            self.user_raw = self.task.get_json_user_input()
         else:
             raise Exception('Not support ansible type: {0} !'.format(
                 self.ansible_type))
 
-        self.inventory_obj = Inventory.objects.get(inventory_id=inventory_id)
-        self.extra_vars = self.current_obj.get_json_extra_vars()
-        if self.user_input.get('extra_vars'):
-            self.extra_vars.update(
-                dict(yaml.safe_load(user_input.get('extra_vars'))))
+        self.extra_vars = self.task.instance.get_json_extra_vars()
 
-        self.kwargs = AnsibleConfig.objects.get(
-            config_id=self.config_id).get_json_config()
+        if self.user_raw.get('extra_vars'):
+            self.extra_vars.update(self.user_raw.get('extra_vars'))
+
+        self.kwargs = self.task.config.get_json_config()
         self.kwargs['extra_vars'] = [self.extra_vars, ]
+
+        self.lock_object_id = '{0}-{1}'.format(self.ansible_type,
+                                               self.task.instance.object_id)
 
         self.runner = self._get_runner()
 
     def _get_runner(self):
         if self.ansible_type == 'script':
             runner = AdHocRunner(
-                module_name=self.current_obj.ansible_module.name,
+                module_name=self.task.script.ansible_module.name,
                 module_args=self.module_args,
-                hosts=self.inventory_obj.get_json_inventory(),
+                hosts=self.task.inventory.get_json_inventory(),
                 log_path=self.log_path,
-                log_id=self.log_id,
+                log_id=self.task_id,
                 **self.kwargs
             )
         else:
             runner = PlaybookRunner(
-                playbook_path=self.current_obj.file_path.path,
-                hosts=self.inventory_obj.get_json_inventory(),
+                playbook_path=self.task.playbook.file_path.path,
+                hosts=self.task.inventory.get_json_inventory(),
                 log_path=self.log_path,
-                log_id=self.log_id,
-                roles_path=self.current_obj.role_path or None,
+                log_id=self.task_id,
+                roles_path=self.task.playbook.role_path or None,
                 **self.kwargs
             )
         return runner
@@ -119,11 +114,10 @@ class Ansible(object):
         return self.result
 
     def _run_before(self):
-        if not self.current_obj.concurrent:
+        if not self.task.instance.concurrent:
             while True:
                 lock = AnsibleLock.objects.filter(
-                    ansible_type=self.ansible_type,
-                    lock_object_id=self.object_id).first()
+                    lock_object_id=self.lock_object_id).first()
                 if not lock:
                     break
                 self.display.display(
@@ -131,36 +125,36 @@ class Ansible(object):
                         self.ansible_type))
                 time.sleep(10)
 
-        AnsibleLock(ansible_type=self.ansible_type,
-                    lock_object_id=self.object_id).save()
+        AnsibleLock(lock_object_id=self.lock_object_id).save()
         self.display.display(settings.ANSIBLE_TASK_START_PREFIX)
 
     def _release_lock(self):
         try:
             # release lock
             lock = AnsibleLock.objects.filter(
-                ansible_type=self.ansible_type,
-                lock_object_id=self.object_id).first()
+                lock_object_id=self.lock_object_id).first()
             if lock:
                 lock.delete()
             self.display.display(settings.ANSIBLE_TASK_END_PREFIX)
         except Exception as e:
             logger.exception(e)
 
+    def _set_redis_expire(self):
+        self.redis = RedisQueue(name=self.task_id)
+        self.redis.expire(settings.ANSIBLE_RESULT_CACHE_EXPIRE)
+
     def _save_log(self):
         try:
             # save log
-            self.log_obj = AnsibleExecLog(
-                log_id=self.log_id,
-                ansible_type=self.ansible_type,
-                object_id=self.object_id,
-                inventory_id=self.inventory_id,
-                config_id=self.config_id,
-                succeed=self.succeed,
-                user_raw=self.user_input,
-                completed_log=self.result,
-                exec_user=self.exec_user
-            )
+            if self.ansible_type == 'script':
+                self.log_obj = AnsibleScriptTaskLog(
+                    task=self.task,
+                    succeed=self.succeed)
+            else:
+                self.log_obj = AnsiblePlayBookTaskLog(
+                    task=self.task,
+                    succeed=self.succeed)
+            self.log_obj.completed_log = self.result
             self.log_obj.save()
         except Exception as e:
             logger.exception(e)
@@ -168,48 +162,52 @@ class Ansible(object):
     def _send_alert(self):
 
         markdown_template = '### Alert Information\n' + \
-                            '- **Ansible type**: {ansible_type}\n' + \
-                            '- **Object id**: {object_id}\n' + \
-                            '- **Execute user**: {exec_user}\n' + \
-                            '- **Detail log**: [detail]({full_log})\n' + \
+                            '- **Ansible Type**: {ansible_type}\n' + \
+                            '- **Instance Name**: {instance_name}\n' + \
+                            '- **Execute User**: {exec_user}\n' + \
+                            '- **Detail Log**: [task log]({full_log})\n' + \
                             '- **Succeed**: {succeed}'
 
         # send alert
-        if self.current_obj.alert and self.log_obj:
-            if self.current_obj.alert_succeed or \
-                    self.current_obj.alert_failed:
+        if self.task.instance.alert:
+            if self.task.instance.alert_succeed or \
+                    self.task.instance.alert_failed:
                 run_alert_task(
-                    self.current_obj.alert.name,
+                    self.task.instance.alert.name,
                     markdown_template.format(
                         ansible_type=self.ansible_type,
-                        object_id=self.object_id,
+                        instance_name=self.task.instance.name,
                         succeed=self.succeed,
-                        exec_user=self.exec_user,
+                        exec_user=self.task.owner,
                         full_log='{0}{1}'.format(
                             settings.SERVER_BASE_URL,
-                            self.log_obj.full_log.url)
+                            self.log_obj.task_log.url)
                     )
                 )
 
     def _run_end(self):
         self._release_lock()
         self._save_log()
+        self._set_redis_expire()
         self._send_alert()
 
 
 class Project(object):
 
-    def __init__(self, project_id, action_type, user_id):
+    def __init__(self, task_id):
         self._status = {
             'succeed': False,
             'msg': ''
         }
-        self.user_id = user_id
-        self.action_type = action_type
+
+        self.task_id = task_id
+        self.task = ProjectTask.objects.get(task_id=task_id)
+        self.action_type = self.task.action_type
         self.repo = None
-        self.project = GitProject.objects.filter(project_id=project_id).first()
+        self.project = self.task.project
         if self.project and self.project.active:
-            self.repo = GitUtil(self.project.remote_url, project_id,
+            self.repo = GitUtil(self.project.remote_url,
+                                self.project.project_id,
                                 self.project.auth_user, self.project.token)
 
     def _clean(self):
@@ -280,11 +278,8 @@ class Project(object):
 
     def _save_log(self):
         try:
-            ProjectActionLog(action_status=self._status.get('succeed'),
-                             project=self.project,
-                             action_type=self.action_type,
-                             action_log=self._status.get('msg'),
-                             exec_user=User.objects.get(pk=self.user_id)).save()
+            ProjectTaskLog(task=self.task, succeed=self._status.get('succeed'),
+                           task_log=self._status.get('result')).save()
         except Exception as e:
             logger.exception(e)
 
@@ -297,6 +292,9 @@ class Project(object):
             self._clean()
         elif self.action_type == 'find':
             self._find()
+        elif self.action_type == 're_clone':
+            self._clean()
+            self._clone()
         else:
             self._status['msg'] = 'Not support action type: {0}'.format(
                 self.action_type)
@@ -400,15 +398,18 @@ class AlertSender(object):
 
 
 @shared_task
-def run_ansible_task(ansible_type, log_id, object_id, inventory_id,
-                     config_id, user_id, **user_input):
-    return Ansible(ansible_type, log_id, object_id, inventory_id,
-                   config_id, user_id, **user_input).run()
+def run_ansible_playbook_task(task_id):
+    return Ansible(ansible_type='playbook', task_id=task_id).run()
 
 
 @shared_task
-def run_project_task(project_id, action_type, user_id):
-    return Project(project_id, action_type, user_id).run()
+def run_ansible_script_task(task_id):
+    return Ansible(ansible_type='script', task_id=task_id).run()
+
+
+@shared_task
+def run_project_task(task_id):
+    return Project(task_id).run()
 
 
 @shared_task

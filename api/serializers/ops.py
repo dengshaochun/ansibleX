@@ -8,8 +8,9 @@
 
 from rest_framework import serializers
 from ops.models import (InventoryGroup, Inventory, AnsiblePlayBook,
-                        AvailableModule, AnsibleLock, AnsibleExecLog,
-                        AnsibleConfig, AnsibleScript)
+                        AvailableModule, AnsibleLock, AnsibleScriptTask,
+                        AnsiblePlayBookTask, AnsibleConfig, AnsibleScript,
+                        GitProject, ProjectTask)
 
 
 class InventorySerializer(serializers.ModelSerializer):
@@ -67,8 +68,22 @@ class AnsibleLockSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class AnsibleExecLogSerializer(serializers.ModelSerializer):
+class AnsibleScriptTaskSerializer(serializers.ModelSerializer):
 
     class Meta:
-        model = AnsibleExecLog
+        model = AnsibleScriptTask
+        fields = '__all__'
+
+
+class GitProjectSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = GitProject
+        fields = '__all__'
+
+
+class ProjectTaskSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = ProjectTask
         fields = '__all__'
