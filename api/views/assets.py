@@ -4,9 +4,7 @@ from django.shortcuts import render
 
 import logging
 from rest_framework import viewsets
-from assets.models import Asset, AssetGroup, SystemUser
-from api.serializers import (AssetGroupSerializer, AssetSerializer,
-                             SystemUserSerializer)
+from api.serializers import *
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +19,12 @@ class AssetGroupViewSet(viewsets.ModelViewSet):
 
     queryset = AssetGroup.objects.all()
     serializer_class = AssetGroupSerializer
+
+
+class AssetTagViewSet(viewsets.ModelViewSet):
+
+    queryset = AssetTag.objects.all()
+    serializer_class = AssetTagSerializer
 
 
 class SystemUserViewSet(viewsets.ModelViewSet):

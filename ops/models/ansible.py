@@ -43,7 +43,7 @@ def convert_json_to_dict(value):
 
 class Inventory(models.Model):
 
-    inventory_id = models.UUIDField(_('inventory id'), default=uuid.uuid4(),
+    inventory_id = models.UUIDField(_('inventory id'), default=uuid.uuid4,
                                     unique=True)
     name = models.CharField(_('inventory name'), max_length=80)
     groups = models.ManyToManyField('InventoryGroup',
@@ -223,7 +223,7 @@ class AvailableModule(models.Model):
 
 class AnsibleBase(models.Model):
 
-    instance_id = models.UUIDField(default=uuid.uuid4(),
+    instance_id = models.UUIDField(default=uuid.uuid4,
                                    verbose_name=_('instance uuid'), unique=True)
     name = models.CharField(max_length=50,
                             verbose_name=_('object name'))
@@ -292,9 +292,9 @@ class AnsiblePlayBook(AnsibleBase):
 
 class AnsibleTask(models.Model):
 
-    task_id = models.UUIDField(default=uuid.uuid4(),
+    task_id = models.UUIDField(default=uuid.uuid4,
                                verbose_name=_('task id'), unique=True)
-    run = models.BooleanField(_('run celery task'), default=True)
+    run_on_save = models.BooleanField(_('run task on save'), default=True)
     user_input = models.TextField(_('user input kwargs'), blank=True, null=True,
                                   validators=[validate_dict_format, ])
     created_time = models.DateTimeField(_('created time'), auto_now_add=True)
@@ -323,7 +323,7 @@ class AnsiblePlayBookTask(AnsibleTask):
                                verbose_name=_('ansible config'),
                                related_name='config_ansible_playbook_tasks',
                                on_delete=models.SET_NULL, null=True)
-    owner = models.ForeignKey(User, verbose_name=_('execute user'),
+    owner = models.ForeignKey(User, verbose_name=_('owner'),
                               on_delete=models.SET_NULL,
                               related_name='owner_ansible_playbook_tasks',
                               null=True)
@@ -342,7 +342,7 @@ class AnsibleScriptTask(AnsibleTask):
                                verbose_name=_('ansible config'),
                                related_name='config_ansible_script_tasks',
                                on_delete=models.SET_NULL, null=True)
-    owner = models.ForeignKey(User, verbose_name=_('execute user'),
+    owner = models.ForeignKey(User, verbose_name=_('owner'),
                               on_delete=models.SET_NULL,
                               related_name='owner_ansible_script_tasks',
                               null=True)
@@ -350,7 +350,7 @@ class AnsibleScriptTask(AnsibleTask):
 
 class AnsibleLog(models.Model):
 
-    log_id = models.UUIDField(_('log id'), default=uuid.uuid4())
+    log_id = models.UUIDField(_('log id'), default=uuid.uuid4)
     succeed = models.BooleanField(_('result status'), default=True)
     task_log = models.FileField(upload_to='logs/ansible/%Y%m/full/',
                                 verbose_name=_('task log'),

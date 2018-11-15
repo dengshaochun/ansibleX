@@ -74,14 +74,14 @@ class Ansible(object):
         self.kwargs['extra_vars'] = [self.extra_vars, ]
 
         self.lock_object_id = '{0}-{1}'.format(self.ansible_type,
-                                               self.task.instance.object_id)
+                                               self.task.instance.instance_id)
 
         self.runner = self._get_runner()
 
     def _get_runner(self):
         if self.ansible_type == 'script':
             runner = AdHocRunner(
-                module_name=self.task.script.ansible_module.name,
+                module_name=self.task.instance.ansible_module.name,
                 module_args=self.module_args,
                 hosts=self.task.inventory.get_json_inventory(),
                 log_path=self.log_path,
@@ -90,11 +90,11 @@ class Ansible(object):
             )
         else:
             runner = PlaybookRunner(
-                playbook_path=self.task.playbook.file_path.path,
+                playbook_path=self.task.instance.file_path.path,
                 hosts=self.task.inventory.get_json_inventory(),
                 log_path=self.log_path,
                 log_id=self.task_id,
-                roles_path=self.task.playbook.role_path or None,
+                roles_path=self.task.instance.role_path or None,
                 **self.kwargs
             )
         return runner
@@ -125,7 +125,7 @@ class Ansible(object):
                         self.ansible_type))
                 time.sleep(10)
 
-        AnsibleLock(lock_object_id=self.lock_object_id).save()
+            AnsibleLock(lock_object_id=self.lock_object_id).save()
         self.display.display(settings.ANSIBLE_TASK_START_PREFIX)
 
     def _release_lock(self):
@@ -168,21 +168,22 @@ class Ansible(object):
                             '- **Detail Log**: [task log]({full_log})\n' + \
                             '- **Succeed**: {succeed}'
 
+        message = markdown_template.format(
+            ansible_type=self.ansible_type,
+            instance_name=self.task.instance.name,
+            succeed=self.succeed,
+            exec_user=self.task.owner,
+            full_log='{0}{1}'.format(
+                settings.SERVER_BASE_URL,
+                self.log_obj.task_log.url)
+        )
         # send alert
         if self.task.instance.alert:
-            if self.task.instance.alert_succeed or \
-                    self.task.instance.alert_failed:
+            if (self.task.instance.alert_succeed and self.succeed) or \
+                    (self.task.instance.alert_failed and not self.succeed):
                 run_alert_task(
                     self.task.instance.alert.name,
-                    markdown_template.format(
-                        ansible_type=self.ansible_type,
-                        instance_name=self.task.instance.name,
-                        succeed=self.succeed,
-                        exec_user=self.task.owner,
-                        full_log='{0}{1}'.format(
-                            settings.SERVER_BASE_URL,
-                            self.log_obj.task_log.url)
-                    )
+                    message=message
                 )
 
     def _run_end(self):
@@ -266,7 +267,8 @@ class Project(object):
                                     file_path=os.path.join(
                                         self.project.local_dir, playbook),
                                     role_path=role_path,
-                                    project=self.project).save()
+                                    project=self.project,
+                                    owner=self.task.owner).save()
                     _add += 1
                 else:
                     _skip += 1
@@ -279,7 +281,7 @@ class Project(object):
     def _save_log(self):
         try:
             ProjectTaskLog(task=self.task, succeed=self._status.get('succeed'),
-                           task_log=self._status.get('result')).save()
+                           task_log=self._status.get('msg')).save()
         except Exception as e:
             logger.exception(e)
 
@@ -292,7 +294,7 @@ class Project(object):
             self._clean()
         elif self.action_type == 'find':
             self._find()
-        elif self.action_type == 're_clone':
+        elif self.action_type == 'hard_clone':
             self._clean()
             self._clone()
         else:

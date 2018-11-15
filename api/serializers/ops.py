@@ -10,7 +10,10 @@ from rest_framework import serializers
 from ops.models import (InventoryGroup, Inventory, AnsiblePlayBook,
                         AvailableModule, AnsibleLock, AnsibleScriptTask,
                         AnsiblePlayBookTask, AnsibleConfig, AnsibleScript,
-                        GitProject, ProjectTask)
+                        GitProject, ProjectTask, AnsibleScriptTaskLog,
+                        AnsiblePlayBookTaskLog, ProjectTaskLog, Alert,
+                        AlertLevel, AlertGroup, AnsiblePlayBookTaskSchedule,
+                        AnsibleScriptTaskSchedule, AlertLog)
 
 
 class InventorySerializer(serializers.ModelSerializer):
@@ -75,6 +78,13 @@ class AnsibleScriptTaskSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class AnsiblePlayBookTaskSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = AnsiblePlayBookTask
+        fields = '__all__'
+
+
 class GitProjectSerializer(serializers.ModelSerializer):
 
     class Meta:
@@ -86,4 +96,67 @@ class ProjectTaskSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ProjectTask
+        fields = '__all__'
+
+
+class AnsibleScriptTaskScheduleSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = AnsibleScriptTaskSchedule
+        fields = '__all__'
+
+
+class AnsiblePlayBookTaskScheduleSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = AnsiblePlayBookTaskSchedule
+        fields = '__all__'
+
+
+class AnsiblePlayBookTaskLogSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = AnsiblePlayBookTaskLog
+        fields = '__all__'
+
+
+class AnsibleScriptTaskLogSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = AnsibleScriptTaskLog
+        fields = '__all__'
+
+
+class ProjectTaskLogSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = ProjectTaskLog
+        fields = '__all__'
+
+
+class AlertSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Alert
+        fields = '__all__'
+
+
+class AlertLevelSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = AlertLevel
+        fields = '__all__'
+
+
+class AlertGroupSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = AlertGroup
+        fields = '__all__'
+
+
+class AlertLogSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = AlertLog
         fields = '__all__'

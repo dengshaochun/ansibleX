@@ -9,13 +9,7 @@
 
 import logging
 from rest_framework import viewsets
-from ops.models import (Inventory, InventoryGroup, AvailableModule,
-                        AnsibleScript, AnsiblePlayBook, AnsibleConfig,
-                        AnsibleLock, AnsibleScriptTask, AnsiblePlayBookTask)
-from api.serializers import (InventorySerializer, InventoryGroupSerializer,
-                             AvailableModuleSerializer, AnsibleScriptSerializer,
-                             AnsiblePlayBookSerializer, AnsibleConfigSerializer,
-                             AnsibleLockSerializer, AnsibleScriptTaskSerializer)
+from api.serializers import *
 
 logger = logging.getLogger(__name__)
 
@@ -65,3 +59,75 @@ class AnsibleScriptTaskViewSet(viewsets.ReadOnlyModelViewSet):
 
     queryset = AnsibleScriptTask.objects.all()
     serializer_class = AnsibleScriptTaskSerializer
+
+
+class AnsiblePlayBookTaskViewSet(viewsets.ReadOnlyModelViewSet):
+
+    queryset = AnsiblePlayBookTask.objects.all()
+    serializer_class = AnsiblePlayBookTaskSerializer
+
+
+class AnsibleScriptTaskScheduleViewSet(viewsets.ReadOnlyModelViewSet):
+
+    queryset = AnsibleScriptTaskSchedule.objects.all()
+    serializer_class = AnsibleScriptTaskScheduleSerializer
+
+
+class AnsiblePlayBookTaskScheduleViewSet(viewsets.ReadOnlyModelViewSet):
+
+    queryset = AnsiblePlayBookTaskSchedule.objects.all()
+    serializer_class = AnsiblePlayBookTaskScheduleSerializer
+
+
+class AnsibleScriptTaskLogViewSet(viewsets.ReadOnlyModelViewSet):
+
+    queryset = AnsibleScriptTaskLog.objects.all()
+    serializer_class = AnsibleScriptTaskLogSerializer
+
+
+class AnsiblePlayBookTaskLogViewSet(viewsets.ReadOnlyModelViewSet):
+
+    queryset = AnsiblePlayBookTaskLog.objects.all()
+    serializer_class = AnsiblePlayBookTaskLogSerializer
+
+
+class GitProjectViewSet(viewsets.ReadOnlyModelViewSet):
+
+    queryset = GitProject.objects.all()
+    serializer_class = GitProjectSerializer
+
+
+class ProjectTaskViewSet(viewsets.ReadOnlyModelViewSet):
+
+    queryset = ProjectTask.objects.all()
+    serializer_class = ProjectTaskSerializer
+
+
+class ProjectTaskLogViewSet(viewsets.ReadOnlyModelViewSet):
+
+    queryset = ProjectTaskLog.objects.all()
+    serializer_class = ProjectTaskLogSerializer
+
+
+class AlertViewSet(viewsets.ReadOnlyModelViewSet):
+
+    queryset = Alert.objects.all()
+    serializer_class = AlertSerializer
+
+
+class AlertLevelViewSet(viewsets.ReadOnlyModelViewSet):
+
+    queryset = AlertLevel.objects.all()
+    serializer_class = AlertLevelSerializer
+
+
+class AlertGroupViewSet(viewsets.ReadOnlyModelViewSet):
+
+    queryset = AlertGroup.objects.all()
+    serializer_class = AlertGroupSerializer
+
+
+class AlertLogViewSet(viewsets.ReadOnlyModelViewSet):
+
+    queryset = AlertLog.objects.all()
+    serializer_class = AlertLogSerializer

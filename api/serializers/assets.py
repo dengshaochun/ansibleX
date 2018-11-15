@@ -8,7 +8,7 @@
 
 
 from rest_framework import serializers
-from assets.models import Asset, AssetGroup, SystemUser
+from assets.models import Asset, AssetGroup, SystemUser, AssetTag
 
 
 class AssetSerializer(serializers.ModelSerializer):
@@ -17,8 +17,12 @@ class AssetSerializer(serializers.ModelSerializer):
         queryset=SystemUser.objects.all())
     asset_group = serializers.SlugRelatedField(
         slug_field='name',
-        queryset=AssetGroup.objects.all(),
-        many=True)
+        queryset=AssetGroup.objects.all())
+    asset_tags = serializers.SlugRelatedField(
+        slug_field='name',
+        queryset=AssetTag.objects.all(),
+        many=True
+    )
 
     class Meta:
         model = Asset
@@ -26,10 +30,19 @@ class AssetSerializer(serializers.ModelSerializer):
 
 
 class AssetGroupSerializer(serializers.ModelSerializer):
-    asset_set = serializers.StringRelatedField(many=True, read_only=True)
+    asset_group_assets = serializers.StringRelatedField(many=True,
+                                                        read_only=True)
 
     class Meta:
         model = AssetGroup
+        fields = '__all__'
+
+
+class AssetTagSerializer(serializers.ModelSerializer):
+    asset_set = serializers.StringRelatedField(many=True, read_only=True)
+
+    class Meta:
+        model = AssetTag
         fields = '__all__'
 
 
@@ -37,7 +50,8 @@ class SystemUserSerializer(serializers.ModelSerializer):
     user_password = serializers.CharField(required=True,
                                           style={'input_type': 'password'},
                                           write_only=True)
-    asset_set = serializers.StringRelatedField(many=True, read_only=True)
+    system_user_assets = serializers.StringRelatedField(many=True,
+                                                        read_only=True)
 
     class Meta:
         model = SystemUser

@@ -8,7 +8,9 @@ from ops.models import (Inventory, AnsiblePlayBook, AvailableModule,
                         AnsibleScriptTask, AnsiblePlayBookTask,
                         AnsibleLock, GitProject,
                         ProjectTask, Alert, AlertLevel, AlertGroup,
-                        AlertLog, DingTalk, UserSchedule)
+                        AlertLog, DingTalk, AnsibleScriptTaskSchedule,
+                        AnsiblePlayBookTaskSchedule, AnsiblePlayBookTaskLog,
+                        AnsibleScriptTaskLog, ProjectTaskLog)
 
 
 class InventoryAdmin(admin.ModelAdmin):
@@ -17,7 +19,7 @@ class InventoryAdmin(admin.ModelAdmin):
     search_fields = ('name', 'inventory_id')
     list_display = ('inventory_id', 'name', 'owner')
     filter_horizontal = ('groups',)
-    readonly_fields = ('create_time', 'owner')
+    readonly_fields = ('inventory_id', 'create_time', 'owner')
 
     def save_model(self, request, obj, form, change):
         obj.owner = request.user
@@ -203,14 +205,42 @@ class DingTalkAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
 
 
-class UserScheduleAdmin(admin.ModelAdmin):
+class AnsibleScriptTaskScheduleAdmin(admin.ModelAdmin):
 
-    model = UserSchedule
-    readonly_fields = ('owner', 'created_time')
+    model = AnsibleScriptTaskSchedule
+    search_fields = ('name', )
+    list_display = ('name', 'enabled')
 
-    def save_model(self, request, obj, form, change):
-        obj.owner = request.user
-        super().save_model(request, obj, form, change)
+
+class AnsiblePlayBookTaskScheduleAdmin(admin.ModelAdmin):
+
+    model = AnsiblePlayBookTaskSchedule
+    search_fields = ('name', )
+    list_display = ('name', 'enabled')
+
+
+class AnsibleScriptTaskLogAdmin(admin.ModelAdmin):
+
+    model = AnsibleScriptTaskLog
+    search_fields = ('log_id', )
+    list_display = ('log_id', 'task', 'succeed')
+    readonly_fields = ('log_id', 'task', 'succeed', 'task_log')
+
+
+class AnsiblePlayBookTaskLogAdmin(admin.ModelAdmin):
+
+    model = AnsiblePlayBookTaskLog
+    search_fields = ('log_id', )
+    list_display = ('log_id', 'task', 'succeed')
+    readonly_fields = ('log_id', 'task', 'succeed', 'task_log')
+
+
+class ProjectTaskLogAdmin(admin.ModelAdmin):
+
+    model = ProjectTaskLog
+    search_fields = ('log_id', )
+    list_display = ('log_id', 'task', 'succeed')
+    readonly_fields = ('log_id', 'task', 'succeed', 'task_log')
 
 
 admin.site.register(Inventory, InventoryAdmin)
@@ -229,4 +259,9 @@ admin.site.register(AlertGroup, AlertGroupAdmin)
 admin.site.register(AlertLevel, AlertLevelAdmin)
 admin.site.register(AlertLog, AlertLogAdmin)
 admin.site.register(DingTalk, DingTalkAdmin)
-admin.site.register(UserSchedule, UserScheduleAdmin)
+admin.site.register(AnsibleScriptTaskSchedule, AnsibleScriptTaskScheduleAdmin)
+admin.site.register(AnsiblePlayBookTaskSchedule,
+                    AnsiblePlayBookTaskScheduleAdmin)
+admin.site.register(AnsiblePlayBookTaskLog, AnsiblePlayBookTaskLogAdmin)
+admin.site.register(AnsibleScriptTaskLog, AnsibleScriptTaskLogAdmin)
+admin.site.register(ProjectTaskLog, ProjectTaskLogAdmin)

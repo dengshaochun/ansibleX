@@ -18,6 +18,7 @@ class AssetTagAdmin(admin.ModelAdmin):
     model = AssetTag
     search_fields = ('name', 'owner')
     list_display = ('name', 'owner', 'desc')
+    readonly_fields = ('owner',)
 
     def save_model(self, request, obj, form, change):
         obj.owner = request.user
@@ -29,6 +30,7 @@ class AssetGroupAdmin(admin.ModelAdmin):
     model = AssetGroup
     search_fields = ('name', 'owner')
     list_display = ('name', 'owner', 'desc')
+    readonly_fields = ('owner',)
 
     def save_model(self, request, obj, form, change):
         obj.owner = request.user

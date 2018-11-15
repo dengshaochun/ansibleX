@@ -44,6 +44,9 @@ class Profile(models.Model):
                                        on_delete=models.SET_NULL, null=True,
                                        blank=True)
 
+    def __str__(self):
+        return self.username
+
 
 class ProfileGroup(models.Model):
 
@@ -56,3 +59,6 @@ class ProfileGroup(models.Model):
                             max_length=100,
                             blank=True,
                             null=True)
+
+    def __str__(self):
+        return self.name

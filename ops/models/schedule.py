@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# @Time    : 2018/11/9 17:34
+# @Time    : 2018/11/15 10:51
 # @Author  : Dengsc
 # @Site    : 
 # @File    : schedule.py
@@ -8,20 +8,79 @@
 
 
 from django.db import models
-from django.contrib.auth.models import User
-from django_celery_beat.models import PeriodicTask
 from django.utils.translation import ugettext_lazy as _
+from django_celery_beat.models import (CrontabSchedule, IntervalSchedule)
+from django.core.exceptions import ValidationError
+
+from ops.models.ansible import AnsiblePlayBookTask, AnsibleScriptTask
 
 
-class UserSchedule(models.Model):
+class AnsibleScriptTaskSchedule(models.Model):
 
-    task = models.ForeignKey(PeriodicTask, verbose_name=_('schedule task'),
-                             on_delete=models.CASCADE,
-                             related_name='task_user_schedules')
-    owner = models.ForeignKey(User, verbose_name=_('schedule task owner'),
-                              related_name='owner_user_schedules',
-                              on_delete=models.CASCADE)
-    created_time = models.DateTimeField(_('created time'), auto_now=True)
+    name = models.CharField(_('schedule task name'), max_length=100,
+                            unique=True)
+    task = models.ForeignKey(AnsibleScriptTask, verbose_name=_('task'),
+                             on_delete=models.CASCADE)
+    crontab = models.ForeignKey(
+        CrontabSchedule, verbose_name=_('crontab'),
+        on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='crontab_ansible_script_schedules')
+    interval = models.ForeignKey(
+        IntervalSchedule, verbose_name=_('interval'),
+        on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='interval_ansible_script_schedules')
+    enabled = models.BooleanField(_('enable'), default=True)
+
+    def validate_unique(self, *args, **kwargs):
+        super(AnsibleScriptTaskSchedule, self).validate_unique(*args, **kwargs)
+        if not self.interval and not self.crontab:
+            raise ValidationError({
+                'interval': [
+                    'One of interval, crontab must be set.'
+                ]
+            })
+        if self.interval and self.crontab:
+            raise ValidationError({
+                'crontab': [
+                    'Only one of interval, crontab must be set'
+                ]
+            })
 
     def __str__(self):
-        return '{0}: {1}'.format(self.task, self.owner)
+        return self.name
+
+
+class AnsiblePlayBookTaskSchedule(models.Model):
+
+    name = models.CharField(_('schedule task name'), max_length=100,
+                            unique=True)
+    task = models.ForeignKey(AnsiblePlayBookTask, verbose_name=_('task'),
+                             on_delete=models.CASCADE)
+    crontab = models.ForeignKey(
+        CrontabSchedule, verbose_name=_('crontab'),
+        on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='crontab_ansible_playbook_schedules')
+    interval = models.ForeignKey(
+        IntervalSchedule, verbose_name=_('interval'),
+        on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='interval_ansible_playbook_schedules')
+    enabled = models.BooleanField(_('enable'), default=True)
+
+    def validate_unique(self, *args, **kwargs):
+        super(AnsiblePlayBookTaskSchedule,
+              self).validate_unique(*args, **kwargs)
+        if not self.interval and not self.crontab:
+            raise ValidationError({
+                'interval': [
+                    'One of interval, crontab must be set.'
+                ]
+            })
+        if self.interval and self.crontab:
+            raise ValidationError({
+                'crontab': [
+                    'Only one of interval, crontab must be set'
+                ]
+            })
+
+    def __str__(self):
+        return self.name

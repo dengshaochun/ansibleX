@@ -18,7 +18,7 @@ from utils.encrypt import PrpCrypt
 
 class GitProject(models.Model):
 
-    project_id = models.UUIDField(_('project uuid'), default=uuid.uuid4())
+    project_id = models.UUIDField(_('project uuid'), default=uuid.uuid4)
     name = models.CharField(_('project name'), max_length=50)
     remote_url = models.URLField(_('project url'), unique=True)
     local_dir = models.CharField(_('project local dir'), max_length=100)
@@ -57,17 +57,18 @@ class ProjectTask(models.Model):
         ('clone', 'clone'),
         ('pull', 'pull'),
         ('clean', 'clean'),
-        ('find', 'find')
+        ('find', 'find'),
+        ('hard_clone', 'hard_clone')
     )
 
-    task_id = models.UUIDField(_('task id'), default=uuid.uuid4())
+    task_id = models.UUIDField(_('task id'), default=uuid.uuid4, unique=True)
     project = models.ForeignKey('GitProject',
                                 verbose_name=_('project'),
                                 related_name='project_project_action_log',
                                 on_delete=models.CASCADE)
     action_type = models.CharField(_('action type'), choices=ACTION_TYPES,
                                    max_length=20)
-    run = models.BooleanField(_('run celery task'), default=True)
+    run_on_save = models.BooleanField(_('run task on save'), default=True)
     owner = models.ForeignKey(User,
                               verbose_name=_('execute user'),
                               related_name='owner_project_tasks',
@@ -80,10 +81,11 @@ class ProjectTask(models.Model):
 
 class ProjectTaskLog(models.Model):
 
+    log_id = models.UUIDField(_('log id'), default=uuid.uuid4, unique=True)
     task = models.ForeignKey('ProjectTask', verbose_name=_('task'),
                              on_delete=models.SET_NULL, null=True)
     succeed = models.BooleanField(_('task status'), default=True)
     task_log = models.TextField(_('task log'), blank=True, null=True)
 
     def __str__(self):
-        return '{0} {1}'.format(self.task, self.succeed)
+        return '{0}'.format(self.log_id)
