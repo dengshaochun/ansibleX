@@ -417,3 +417,15 @@ def run_project_task(task_id):
 @shared_task
 def run_alert_task(alert_name, message):
     return AlertSender(alert_name, message).run()
+
+
+@shared_task
+def run_add_principal_task(principal_id):
+    # Todo
+    pass
+
+
+@shared_task
+def run_expire_principal_task(principal_id):
+    # Todo
+    pass

@@ -11,3 +11,4 @@ from ops.models.ansible import *
 from ops.models.project import *
 from ops.models.alert import *
 from ops.models.schedule import *
+from ops.models.kdc import *

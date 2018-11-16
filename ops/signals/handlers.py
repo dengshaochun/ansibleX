@@ -11,9 +11,11 @@ from django.dispatch import receiver
 from django.db.models.signals import post_save, post_delete
 from django_celery_beat.models import PeriodicTask
 from ops.models import (AnsibleScriptTaskSchedule, AnsiblePlayBookTaskSchedule,
-                        ProjectTask, AnsibleScriptTask, AnsiblePlayBookTask)
+                        ProjectTask, AnsibleScriptTask, AnsiblePlayBookTask,
+                        Principal)
 from ops.tasks import (run_project_task, run_ansible_script_task,
-                       run_ansible_playbook_task)
+                       run_ansible_playbook_task, run_add_principal_task,
+                       run_expire_principal_task)
 
 
 @receiver(post_save, sender=ProjectTask, dispatch_uid='project_task_post_save')
@@ -103,3 +105,15 @@ def uninstall_ansible_playbook_schedule(sender, **kwargs):
     pt = PeriodicTask.objects.filter(name=task_name).first()
     if pt:
         pt.delete()
+
+
+@receiver(post_save, sender=Principal, dispatch_uid='principal_post_save')
+def add_user_principal(sender, **kwargs):
+    instance = kwargs.get('instance')
+    run_add_principal_task.delay(instance.id)
+
+
+@receiver(post_delete, sender=Principal, dispatch_uid='principal_post_delete')
+def delete_user_principal(sender, **kwargs):
+    instance = kwargs.get('instance')
+    run_expire_principal_task.delay(instance.id)
