@@ -8,9 +8,14 @@
 
 
 import os
+import time
+import filecmp
 import kadmin
+import logging
 import datetime
 from utils.shell_api import run_shell
+
+logger = logging.getLogger(__name__)
 
 
 class Kadmin(object):
@@ -38,9 +43,13 @@ class Kadmin(object):
         if admin_password:
             self.admin = kadmin.init_with_password(
                 admin_principal, admin_password)
+            self.shell = 'kadmin -p {0} -w {1} -q'.format(admin_principal,
+                                                          admin_password)
         else:
             self.admin = kadmin.init_with_keytab(
                 admin_principal, admin_keytab)
+            self.shell = 'kadmin -p {0} -kt {1} -q'.format(admin_principal,
+                                                           admin_keytab)
 
     def _setup_config(self):
         """
@@ -49,10 +58,20 @@ class Kadmin(object):
         """
 
         # Todo make sure only one instance
+        while os.path.exists('/etc/krb5.conf'):
+            if filecmp.cmp('/etc/krb5.conf', self.config):
+                return True
+            logger.warning('Anothor kadmin instance exists!')
+            time.sleep(5)
+
         if os.path.isfile(self.config):
             result = run_shell('sudo cp {0} /etc/'.format(self.config))
             return result.get('succeed')
         return False
+
+    def _kadmin_shell(self, cmd):
+        result = run_shell('{0} "{1}"'.format(self.shell, cmd))
+        return result
 
     def add_principal(self, user):
         """
@@ -113,5 +132,12 @@ class Kadmin(object):
         else:
             return None
 
+    def export_principal(self, user, path):
+        return self._kadmin_shell('xst -k {0} {1}'.format(path, user))
+
+    def delete_principal(self, user):
+        return self._kadmin_shell('delprinc {0}'.format(user))
+
     def __del__(self):
-        pass
+        if os.path.isfile('/etc/krb5.conf'):
+            run_shell('sudo rm /etc/krb5.conf'.format(self.config))

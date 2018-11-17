@@ -1,10 +1,7 @@
 from django.db import models
 
 import uuid
-import yaml
 import json
-from django.core.exceptions import ValidationError
-
 from django.utils.translation import ugettext_lazy as _
 from django.contrib.auth.models import User
 from django.core.files.base import ContentFile
@@ -14,31 +11,9 @@ from ops.models.project import GitProject
 from ops.models.alert import Alert
 from utils.encrypt import PrpCrypt
 
+from utils.validators import convert_json_to_dict, validate_dict_format
+
 # Create your models here.
-
-
-def validate_dict_format(value):
-    """
-    validate string is python dict format
-    :param value: <str>
-    :return: None
-    """
-    try:
-        dict(yaml.safe_load(value))
-    except Exception:
-        raise ValidationError(
-            _('%(value)s is not an python dict decode string.'),
-            params={'value': value},
-        )
-
-
-def convert_json_to_dict(value):
-    """
-    convert json data to python dict
-    :param value: <str> value
-    :return: <dict> value
-    """
-    return dict(yaml.safe_load(value))
 
 
 class Inventory(models.Model):
@@ -59,6 +34,7 @@ class Inventory(models.Model):
 
     def get_json_inventory(self):
         inventory_dict = {}
+        host_var = {}
 
         for g in self.groups.all():
             inventory_dict.setdefault(g.name, {})
@@ -70,19 +46,23 @@ class Inventory(models.Model):
             for h in g.assets.all():
                 if h.active:
                     inventory_dict[g.name]['hosts'].append(h.ip)
+                    host_var[h.ip] = h.get_json_meta_vars()
 
             # add asset form asset groups
             for h_g in g.asset_groups.all():
                 for h in h_g.asset_set.all():
                     if h.active:
                         inventory_dict[g.name]['hosts'].append(h.ip)
+                        host_var[h.ip] = h.get_json_meta_vars()
 
             # add asset from asset tags
             for h_t in g.asset_tags.all():
                 for h in h_t.asset_set.all():
                     if h.active:
                         inventory_dict[g.name]['hosts'].append(h.ip)
-
+                        host_var[h.ip] = h.get_json_meta_vars()
+        if host_var:
+            inventory_dict['_meta'] = {'hostvars': host_var}
         return inventory_dict
 
 
@@ -396,3 +376,15 @@ class AnsibleLock(models.Model):
 
     def __str__(self):
         return self.lock_object_id
+
+
+class DefaultActionPlaybook(models.Model):
+
+    name = models.CharField(_('action name'), unique=True, max_length=100)
+    playbook = models.ForeignKey('AnsiblePlayBook',
+                                 verbose_name=_('ansible playbook'),
+                                 on_delete=models.SET_NULL, null=True)
+    created_time = models.DateTimeField(_('create time'), auto_now_add=True)
+
+    def __str__(self):
+        return self.name

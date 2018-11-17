@@ -3,6 +3,8 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils.translation import ugettext_lazy as _
 
+from assets.models import Asset, AssetTag, AssetGroup
+
 # Create your models here.
 
 
@@ -44,6 +46,10 @@ class Profile(models.Model):
                                        on_delete=models.SET_NULL, null=True,
                                        blank=True)
 
+    @property
+    def principal_info(self):
+        return self.sys_account.principal.principal_info
+
     def __str__(self):
         return self.username
 
@@ -62,3 +68,44 @@ class ProfileGroup(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class ProfileAsset(models.Model):
+
+    user = models.ForeignKey(User, verbose_name=_('user'),
+                             on_delete=models.CASCADE,
+                             related_name='user_profile_assets')
+    asset = models.ForeignKey(Asset, verbose_name=_('profile assets'),
+                              on_delete=models.SET_NULL,
+                              related_name='asset_profile_assets',
+                              null=True)
+    asset_group = models.ForeignKey(
+        AssetGroup, verbose_name=_('profile asset groups'),
+        on_delete=models.SET_NULL, related_name='asset_group_profile_assets',
+        null=True)
+    asset_tag = models.ForeignKey(AssetTag,
+                                  verbose_name=_('profile asset tags'),
+                                  on_delete=models.SET_NULL,
+                                  related_name='asset_tag_profile_assets',
+                                  null=True)
+    created_time = models.DateTimeField(_('create time'), auto_now_add=True)
+    owner = models.ForeignKey(User, verbose_name=_('owner'),
+                              on_delete=models.SET_NULL, null=True,
+                              related_name='owner_profile_assets')
+
+    class Meta:
+        unique_together = (('user', 'asset'),
+                           ('user', 'asset_group'),
+                           ('user', 'asset_tag'))
+
+    @property
+    def assets(self):
+        assets_1 = [self.asset, ] if self.asset else []
+        assets_2 = [x for x in
+                    self.asset_group.asset_group_assets.all() if x.active]
+        assets_3 = [x for x in self.asset_tag.asset_set.all() if x.active]
+
+        return set(assets_1 + assets_2 + assets_3)
+
+    def __str__(self):
+        return self.pk

@@ -23,7 +23,8 @@ class KDCServer(models.Model):
     realms = models.CharField(_('kdc name'), max_length=50)
     hosts = models.ManyToManyField(Asset, verbose_name=_('kdc hosts'))
     admin_server = models.ForeignKey(Asset, verbose_name=_('admin server host'),
-                                     on_delete=models.SET_NULL, null=True)
+                                     on_delete=models.SET_NULL, null=True,
+                                     related_name='admin_server_kdc_servers')
     config_file = models.FileField(upload_to='config/kdc/',
                                    verbose_name=_('kdc config file'),
                                    blank=True, null=True)
@@ -43,25 +44,29 @@ class KDCServer(models.Model):
                 ]
             })
 
+    @property
+    def abs_config_path(self):
+        return os.path.join(settings.BASE_DIR, self.config_file.url)
+
     def __str__(self):
         return '{0} {1}'.format(self.realms, self.name)
 
 
 class Principal(models.Model):
 
-    user = models.ForeignKey(User, verbose_name=_('user of principal'),
-                             on_delete=models.CASCADE)
+    user = models.OneToOneField(User, verbose_name=_('user of principal'),
+                                on_delete=models.CASCADE,
+                                related_name='user_principals')
     kdc = models.ForeignKey('KDCServer', verbose_name=_('kdc server'),
-                            on_delete=models.CASCADE)
+                            on_delete=models.CASCADE,
+                            related_name='kdc_principals')
     created_time = models.DateTimeField(_('created time'), auto_now_add=True)
 
     @property
     def principal_info(self):
         from utils.kadmin_api import Kadmin
-        abs_config_path = os.path.join(settings.MEDIA_ROOT,
-                                       self.kdc.config_file.url)
         admin = Kadmin(self.kdc.admin_principal, self.kdc.admin_password,
-                       self.kdc.admin_keytab, abs_config_path,
+                       self.kdc.admin_keytab, self.kdc.abs_config_path,
                        self.kdc.realms)
         principal = admin.get_principal_info(self.user.username)
         del admin
