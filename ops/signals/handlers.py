@@ -7,14 +7,12 @@
 # @Software: PyCharm
 
 import json
-import time
 from django.dispatch import receiver
 from django.db.models.signals import post_save, post_delete
 from django_celery_beat.models import PeriodicTask
-from accounts.models import ProfileAsset
 from ops.models import (AnsibleScriptTaskSchedule, AnsiblePlayBookTaskSchedule,
                         ProjectTask, AnsibleScriptTask, AnsiblePlayBookTask,
-                        Principal, Inventory, InventoryGroup, HadoopClient)
+                        Principal, HadoopClient)
 from ops.tasks import (run_project_task, run_ansible_script_task,
                        run_ansible_playbook_task, run_add_principal_task,
                        run_expire_principal_task)
@@ -45,7 +43,7 @@ def run_ansible_playbook_task_when_save(sender, **kwargs):
 
 @receiver(post_save, sender=AnsibleScriptTaskSchedule,
           dispatch_uid='ansible_script_task_schedule_post_save')
-def setup_ansible_task_schedule(sender, **kwargs):
+def setup_ansible_script_task_schedule(sender, **kwargs):
     schedule = kwargs.get('instance')
     task_name = '{0}-{1}-{2}'.format('script',
                                      schedule.task.owner.username,
@@ -55,7 +53,7 @@ def setup_ansible_task_schedule(sender, **kwargs):
     if not pt:
         pt = PeriodicTask()
         pt.name = task_name
-        pt.task = 'ops.tasks.run_ansible_script_task'
+        pt.task = 'ops.tasks.ansible.run_ansible_script_task'
     pt.crontab = schedule.crontab
     pt.interval = schedule.interval
     pt.kwargs = json.dumps({'task_id': '{0}'.format(schedule.task.task_id)})
@@ -65,7 +63,7 @@ def setup_ansible_task_schedule(sender, **kwargs):
 
 @receiver(post_delete, sender=AnsibleScriptTaskSchedule,
           dispatch_uid='ansible_script_task_schedule_post_delete')
-def uninstall_ansible_task_schedule(sender, **kwargs):
+def uninstall_ansible_script_task_schedule(sender, **kwargs):
     schedule = kwargs.get('instance')
     task_name = '{0}-{1}-{2}'.format('script',
                                      schedule.task.owner.username,
@@ -88,7 +86,7 @@ def setup_ansible_playbook_schedule(sender, **kwargs):
     if not pt:
         pt = PeriodicTask()
         pt.name = task_name
-        pt.task = 'ops.tasks.run_ansible_playbook_task'
+        pt.task = 'ops.tasks.ansible.run_ansible_playbook_task'
     pt.crontab = schedule.crontab
     pt.interval = schedule.interval
     pt.enabled = schedule.enabled
@@ -110,12 +108,9 @@ def uninstall_ansible_playbook_schedule(sender, **kwargs):
 
 
 @receiver(post_save, sender=Principal, dispatch_uid='principal_post_save')
-def add_user_principal(sender, **kwargs):
+def change_user_principal(sender, **kwargs):
     instance = kwargs.get('instance')
-    run_add_principal_task.delay(instance.pk)
-
-
-@receiver(post_delete, sender=Principal, dispatch_uid='principal_post_delete')
-def delete_user_principal(sender, **kwargs):
-    instance = kwargs.get('instance')
-    run_expire_principal_task.delay(instance.pk)
+    if instance.active:
+        run_add_principal_task.delay(instance.pk)
+    else:
+        run_expire_principal_task.delay(instance.pk)

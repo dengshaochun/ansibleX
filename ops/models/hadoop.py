@@ -18,11 +18,19 @@ from ops.models.kdc import KDCServer
 
 
 class Acl(models.Model):
+    ACL_TYPES = (
+        ('user', 'user'),
+        ('group', 'group'),
+        ('other', 'other'),
+    )
 
     name = models.CharField(_('Acl name'), max_length=50, unique=True)
     permission = models.ForeignKey('AclPermission',
                                    verbose_name=_('permission'),
                                    on_delete=models.CASCADE)
+    acl_type = models.CharField(_('acl type'), max_length=10,
+                                default='group', choices=ACL_TYPES)
+    default_acl = models.BooleanField(_('default acl'), default=False)
     desc = models.CharField(_('description'),
                             max_length=100,
                             blank=True,
@@ -58,13 +66,16 @@ class HiveDataBase(models.Model):
     acls = models.ManyToManyField('Acl',
                                   verbose_name=_('acls'),
                                   blank=True)
+    cluster = models.ForeignKey('CDHCluster', verbose_name=_('CDH cluster'),
+                                related_name='cluster_hive_databases',
+                                on_delete=models.CASCADE)
     desc = models.CharField(_('description'),
                             max_length=100,
                             blank=True,
                             null=True)
     created_time = models.DateTimeField(_('create time'), auto_now_add=True)
-    owners = models.ManyToManyField(Profile,
-                                    verbose_name=_('owners'),
+    admins = models.ManyToManyField(Profile,
+                                    verbose_name=_('Administrators'),
                                     blank=True)
 
     def __str__(self):
@@ -77,12 +88,15 @@ class YarnPool(models.Model):
     acls = models.ManyToManyField('Acl',
                                   verbose_name=_('acls'),
                                   blank=True)
+    cluster = models.ForeignKey('CDHCluster', verbose_name=_('CDH cluster'),
+                                related_name='cluster_yarn_pools',
+                                on_delete=models.CASCADE)
     desc = models.CharField(_('description'),
                             max_length=100,
                             blank=True,
                             null=True)
-    leader = models.ManyToManyField(Profile,
-                                    verbose_name=_('leader'),
+    admins = models.ManyToManyField(Profile,
+                                    verbose_name=_('Administrators'),
                                     blank=True)
 
     def __str__(self):
@@ -152,11 +166,14 @@ class CDHCluster(models.Model):
 class HadoopClient(models.Model):
 
     host = models.ForeignKey(Asset, verbose_name=_('host'),
+                             related_name='host_hadoop_clients',
                              on_delete=models.CASCADE)
     cluster = models.ForeignKey('CDHCluster', verbose_name=_('CDH cluster'),
+                                related_name='cluster_hadoop_clients',
                                 on_delete=models.CASCADE)
     created_time = models.DateTimeField(_('create time'), auto_now_add=True)
     owner = models.ForeignKey(User, verbose_name=_('owner'),
+                              related_name='owner_hadoop_clients',
                               on_delete=models.SET_NULL, null=True)
 
     def __str__(self):

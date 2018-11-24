@@ -27,16 +27,16 @@ logger = logging.getLogger(__name__)
 
 class Ansible(object):
 
-    def __init__(self, ansible_type, task_id):
+    def __init__(self, ansible_type, task_id, celery_task_id):
 
         self.ansible_type = ansible_type
         self.task_id = task_id
+        self.celery_task_id = celery_task_id
         self.task = None
         self.extra_vars = {}
 
         self.succeed = False
         self.result = None
-        self.log_obj = None
 
         # current year and month
         yy_mm = datetime.datetime.now().strftime('%Y%m')
@@ -72,6 +72,7 @@ class Ansible(object):
         self.lock_object_id = '{0}-{1}'.format(self.ansible_type,
                                                self.task.instance.instance_id)
 
+        self.log_instance = self._get_log_instance()
         self.runner = self._get_runner()
 
     def _get_runner(self):
@@ -139,21 +140,30 @@ class Ansible(object):
         self.redis = RedisQueue(name=self.task_id)
         self.redis.expire(settings.ANSIBLE_RESULT_CACHE_EXPIRE)
 
-    def _save_log(self):
+    def _get_log_instance(self):
+        log_instance = None
         try:
-            # save log
+            # get log instance
             if self.ansible_type == 'script':
-                self.log_obj = AnsibleScriptTaskLog(
+                log_instance = AnsibleScriptTaskLog(
                     task=self.task,
-                    succeed=self.succeed)
+                    celery_task_id=self.celery_task_id)
             else:
-                self.log_obj = AnsiblePlayBookTaskLog(
+                log_instance = AnsiblePlayBookTaskLog(
                     task=self.task,
-                    succeed=self.succeed)
-            self.log_obj.completed_log = self.result
-            self.log_obj.save()
+                    celery_task_id=self.celery_task_id)
+            log_instance.save()
         except Exception as e:
             logger.exception(e)
+        return log_instance
+
+    def _update_task_log(self):
+        if self.log_instance:
+            self.log_instance.succeed = self.succeed
+            self.log_instance.completed_log = self.result
+            self.log_instance.save()
+        else:
+            logger.exception('log instance is None!')
 
     def _send_alert(self):
 
@@ -171,7 +181,7 @@ class Ansible(object):
             exec_user=self.task.owner,
             full_log='{0}{1}'.format(
                 settings.SERVER_BASE_URL,
-                self.log_obj.task_log.url)
+                self.log_instance.task_log.url)
         )
         # send alert
         if self.task.instance.alert:
@@ -184,16 +194,20 @@ class Ansible(object):
 
     def _run_end(self):
         self._release_lock()
-        self._save_log()
+        self._update_task_log()
         self._set_redis_expire()
         self._send_alert()
 
 
 @shared_task
 def run_ansible_playbook_task(task_id):
-    return Ansible(ansible_type='playbook', task_id=task_id).run()
+    return Ansible(ansible_type='playbook', task_id=task_id,
+                   celery_task_id=run_ansible_playbook_task.request.id
+                   ).run()
 
 
 @shared_task
 def run_ansible_script_task(task_id):
-    return Ansible(ansible_type='script', task_id=task_id).run()
+    return Ansible(ansible_type='script', task_id=task_id,
+                   celery_task_id=run_ansible_script_task.request.id
+                   ).run()

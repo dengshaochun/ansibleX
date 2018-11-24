@@ -13,7 +13,7 @@ from utils.kadmin_api import Kadmin
 
 def get_admin(instance):
     return Kadmin(instance.kdc.admin_principal,
-                  instance.kdc.admin_password,
+                  instance.kdc.password,
                   instance.kdc.admin_keytab,
                   instance.kdc.abs_config_path,
                   instance.kdc.realms)
@@ -24,6 +24,7 @@ def run_add_principal_task(principal_id):
     instance = Principal.objects.get(pk=principal_id)
     admin = get_admin(instance)
     result = admin.add_principal(instance.user.username)
+    print(result)
     del admin
     return result
 

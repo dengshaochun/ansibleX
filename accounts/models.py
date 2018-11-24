@@ -48,7 +48,7 @@ class Profile(models.Model):
 
     @property
     def principal_info(self):
-        return self.sys_account.principal.principal_info
+        return self.sys_account.user_principal.principal_info
 
     def __str__(self):
         return self.username
@@ -100,12 +100,21 @@ class ProfileAsset(models.Model):
 
     @property
     def assets(self):
-        assets_1 = [self.asset, ] if self.asset else []
-        assets_2 = [x for x in
-                    self.asset_group.asset_group_assets.all() if x.active]
-        assets_3 = [x for x in self.asset_tag.asset_set.all() if x.active]
+        asset_list = []
+        if self.asset:
+            asset_list.append(self.asset)
 
-        return set(assets_1 + assets_2 + assets_3)
+        if self.asset_group:
+            for x in self.asset_group.asset_group_assets.all():
+                if x.active:
+                    asset_list.append(x)
+
+        if self.asset_tag:
+            for x in self.asset_tag.asset_set.all():
+                if x.active:
+                    asset_list.append(x)
+
+        return set(asset_list)
 
     def __str__(self):
         return self.pk

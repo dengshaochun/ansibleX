@@ -331,7 +331,9 @@ class AnsibleScriptTask(AnsibleTask):
 class AnsibleLog(models.Model):
 
     log_id = models.UUIDField(_('log id'), default=uuid.uuid4)
+    celery_task_id = models.CharField(_('celery task id'), max_length=200)
     succeed = models.BooleanField(_('result status'), default=True)
+    cron_task = models.BooleanField(_('crontab task'), default=True)
     task_log = models.FileField(upload_to='logs/ansible/%Y%m/full/',
                                 verbose_name=_('task log'),
                                 blank=True, null=True)

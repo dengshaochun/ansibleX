@@ -10,7 +10,9 @@ from ops.models import (Inventory, AnsiblePlayBook, AvailableModule,
                         ProjectTask, Alert, AlertLevel, AlertGroup,
                         AlertLog, DingTalk, AnsibleScriptTaskSchedule,
                         AnsiblePlayBookTaskSchedule, AnsiblePlayBookTaskLog,
-                        AnsibleScriptTaskLog, ProjectTaskLog)
+                        AnsibleScriptTaskLog, ProjectTaskLog, KDCServer,
+                        Principal, Acl, AclPermission, HiveDataBase,
+                        CDHCluster, CMServer, YarnPool, HadoopClient)
 
 
 class InventoryAdmin(admin.ModelAdmin):
@@ -243,6 +245,81 @@ class ProjectTaskLogAdmin(admin.ModelAdmin):
     readonly_fields = ('log_id', 'task', 'succeed', 'task_log')
 
 
+class KDCServerAdmin(admin.ModelAdmin):
+
+    model = KDCServer
+    search_fields = ('name', 'realms')
+    list_display = ('name', 'realms')
+    filter_horizontal = ('hosts',)
+
+    def save_model(self, request, obj, form, change):
+        if change:
+            old_obj = KDCServer.objects.get(pk=obj.pk)
+            if old_obj.admin_password != obj.admin_password:
+                obj.password = obj.admin_password
+        else:
+            obj.password = obj.admin_password
+
+        super().save_model(request, obj, form, change)
+
+
+class PrincipalAdmin(admin.ModelAdmin):
+
+    model = Principal
+    readonly_fields = ('created_time', )
+
+
+class AclAdmin(admin.ModelAdmin):
+
+    model = Acl
+    search_fields = ('name', 'acl_type')
+    list_display = ('name', 'acl_type', 'default_acl', 'created_time')
+    readonly_fields = ('created_time', )
+
+
+class AclPermissionAdmin(admin.ModelAdmin):
+
+    model = AclPermission
+    search_fields = ('name', )
+    list_display = ('name', 'permission')
+
+
+class HiveDataBaseAdmin(admin.ModelAdmin):
+
+    model = HiveDataBase
+    search_fields = ('name', )
+    list_display = ('name', 'path', 'space_quota',
+                    'files_quota', 'created_time')
+    readonly_fields = ('created_time', )
+
+
+class YarnPoolAdmin(admin.ModelAdmin):
+
+    model = YarnPool
+    search_fields = ('name', )
+
+
+class CMServerAdmin(admin.ModelAdmin):
+
+    model = CMServer
+    search_fields = ('name', )
+    list_display = ('name', 'version', 'api_version')
+
+
+class CDHClusterAdmin(admin.ModelAdmin):
+
+    model = CDHCluster
+    search_fields = ('name', 'display_name')
+    list_display = ('name', 'display_name', 'version', 'last_modified_time')
+    readonly_fields = ('last_modified_time', )
+
+
+class HadoopClientAdmin(admin.ModelAdmin):
+
+    model = HadoopClient
+    readonly_fields = ('created_time', 'owner')
+
+
 admin.site.register(Inventory, InventoryAdmin)
 admin.site.register(InventoryGroup, InventoryGroupAdmin)
 admin.site.register(AnsiblePlayBook, AnsiblePlayBookAdmin)
@@ -265,3 +342,12 @@ admin.site.register(AnsiblePlayBookTaskSchedule,
 admin.site.register(AnsiblePlayBookTaskLog, AnsiblePlayBookTaskLogAdmin)
 admin.site.register(AnsibleScriptTaskLog, AnsibleScriptTaskLogAdmin)
 admin.site.register(ProjectTaskLog, ProjectTaskLogAdmin)
+admin.site.register(KDCServer, KDCServerAdmin)
+admin.site.register(Principal, PrincipalAdmin)
+admin.site.register(Acl, AclAdmin)
+admin.site.register(AclPermission, AclPermissionAdmin)
+admin.site.register(CMServer, CMServerAdmin)
+admin.site.register(HiveDataBase, HiveDataBaseAdmin)
+admin.site.register(YarnPool, YarnPoolAdmin)
+admin.site.register(CDHCluster, CDHClusterAdmin)
+admin.site.register(HadoopClient, HadoopClientAdmin)

@@ -45,30 +45,34 @@ class Asset(models.Model):
         return convert_json_to_dict(self.extra_vars) if self.extra_vars else {}
 
     def get_json_principal_vars(self):
-        principals_1 = [x.user.username
-                        for x in self.asset_profile_assets.all()
-                        if x.user.active and x.user.principal_info]
-        principals_2 = [x.user.username
-                        for x in self.asset_group.asset_group_profile_assets.all()
-                        if x.user.active and x.user.principal_info]
-        principals_3 = []
+        principal_list = []
+        for x in self.asset_profile_assets.all():
+            if x.user.active and x.user.principal_info:
+                principal_list.append(x.user.username)
+
+        if self.asset_group:
+            for x in self.asset_group.asset_group_profile_assets.all():
+                if x.user.active and x.user.principal_info:
+                    principal_list.append(x.user.username)
+
         for tag in self.asset_tags.all():
-            principals_3 += [x.user.username
-                             for x in tag.profileasset_set.all()
-                             if x.user.active and x.user.principal_info]
+            for x in tag.asset_tag_profile_assets.all():
+                if x.user.active and x.user.principal_info:
+                    principal_list.append(x.user.username)
 
         return {
-            'host_principals': set(principals_1 + principals_2 + principals_3)
+            '_host_principals': set(principal_list)
         }
 
     def get_json_tag_vars(self):
         return {
-            'host_tags': [x.name for x in self.asset_tags.all()]
+            '_host_tags': [x.name for x in self.asset_tags.all()]
         }
 
     def get_json_group_vars(self):
         return {
-            'host_group': self.asset_group.name
+            '_host_group':
+                self.asset_group.name if self.asset_group else None
         }
 
     def get_json_meta_vars(self):

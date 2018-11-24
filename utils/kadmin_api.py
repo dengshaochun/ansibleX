@@ -79,7 +79,9 @@ class Kadmin(object):
         :param user: <str> username
         :return: <dict> principal information
         """
-        self.admin.addprinc(user)
+        if not self.get_principal_info(user):
+            self.admin.addprinc(user)
+        self.activate_principal(user)
         return self.get_principal_info(user)
 
     def expire_principal(self, user):
@@ -124,8 +126,8 @@ class Kadmin(object):
                 'last_pwd_change': principal.last_pwd_change,
                 'last_success': principal.last_success,
                 'last_failure': principal.last_failure,
-                'maxlife': principal.maxlife,
-                'maxrenewlife': principal.maxrenewlife,
+                'maxlife': self._str_timedelta(principal.maxlife),
+                'maxrenewlife': self._str_timedelta(principal.maxrenewlife),
                 'kvno': principal.kvno,
                 'expire': principal.expire
             }
@@ -137,6 +139,12 @@ class Kadmin(object):
 
     def delete_principal(self, user):
         return self._kadmin_shell('delprinc {0}'.format(user))
+
+    def _str_timedelta(self, obj):
+        if isinstance(obj, datetime.timedelta):
+            return int(obj.total_seconds())
+        else:
+            return str(obj)
 
     def __del__(self):
         if os.path.isfile('/etc/krb5.conf'):
