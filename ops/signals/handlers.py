@@ -12,7 +12,7 @@ from django.db.models.signals import post_save, post_delete
 from django_celery_beat.models import PeriodicTask
 from ops.models import (AnsibleScriptTaskSchedule, AnsiblePlayBookTaskSchedule,
                         ProjectTask, AnsibleScriptTask, AnsiblePlayBookTask,
-                        Principal, HadoopClient)
+                        Principal, ClusterClient, ProjectTaskSchedule)
 from ops.tasks import (run_project_task, run_ansible_script_task,
                        run_ansible_playbook_task, run_add_principal_task,
                        run_expire_principal_task)
@@ -99,6 +99,39 @@ def setup_ansible_playbook_schedule(sender, **kwargs):
 def uninstall_ansible_playbook_schedule(sender, **kwargs):
     schedule = kwargs.get('instance')
     task_name = '{0}-{1}-{2}'.format('playbook',
+                                     schedule.task.owner.username,
+                                     schedule.name)
+
+    pt = PeriodicTask.objects.filter(name=task_name).first()
+    if pt:
+        pt.delete()
+
+
+@receiver(post_save, sender=ProjectTaskSchedule,
+          dispatch_uid='project_task_schedule_post_save')
+def setup_project_schedule(sender, **kwargs):
+    schedule = kwargs.get('instance')
+    task_name = '{0}-{1}-{2}'.format('project',
+                                     schedule.task.owner.username,
+                                     schedule.name)
+
+    pt = PeriodicTask.objects.filter(name=task_name).first()
+    if not pt:
+        pt = PeriodicTask()
+        pt.name = task_name
+        pt.task = 'ops.tasks.project.run_project_task'
+    pt.crontab = schedule.crontab
+    pt.interval = schedule.interval
+    pt.enabled = schedule.enabled
+    pt.kwargs = json.dumps({'task_id': '{0}'.format(schedule.task.task_id)})
+    pt.save()
+
+
+@receiver(post_delete, sender=ProjectTaskSchedule,
+          dispatch_uid='project_task_schedule_post_delete')
+def uninstall_project_schedule(sender, **kwargs):
+    schedule = kwargs.get('instance')
+    task_name = '{0}-{1}-{2}'.format('project',
                                      schedule.task.owner.username,
                                      schedule.name)
 

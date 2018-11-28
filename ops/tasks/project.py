@@ -19,21 +19,24 @@ logger = logging.getLogger(__name__)
 
 class Project(object):
 
-    def __init__(self, task_id):
+    def __init__(self, task_id, celery_task_id):
         self._status = {
             'succeed': False,
             'msg': ''
         }
 
         self.task_id = task_id
+        self.celery_task_id = celery_task_id
         self.task = ProjectTask.objects.get(task_id=task_id)
         self.action_type = self.task.action_type
         self.repo = None
         self.project = self.task.project
+        self.log_instance = self._get_log_instance()
         if self.project and self.project.active:
             self.repo = GitUtil(self.project.remote_url,
                                 self.project.project_id,
-                                self.project.auth_user, self.project.token)
+                                self.project.auth_user,
+                                self.project.token)
 
     def _clean(self):
         local_path = self.project.local_dir or self.repo.local_path
@@ -102,12 +105,23 @@ class Project(object):
         except Exception as e:
             self._status['msg'] = str(e)
 
-    def _save_log(self):
+    def _get_log_instance(self):
         try:
-            ProjectTaskLog(task=self.task, succeed=self._status.get('succeed'),
-                           task_log=self._status.get('msg')).save()
+            log_instance = ProjectTaskLog(task=self.task,
+                                          celery_task_id=self.celery_task_id)
+            log_instance.save()
+            return log_instance
         except Exception as e:
             logger.exception(e)
+            return None
+
+    def _save_log(self):
+        if self.log_instance:
+            self.log_instance.succeed = self._status.get('succeed', False)
+            self.log_instance.task_log = self._status.get('msg', '')
+            self.log_instance.save()
+        else:
+            logger.exception('Log instance is None!')
 
     def run(self):
         if self.action_type == 'clone':
@@ -130,4 +144,4 @@ class Project(object):
 
 @shared_task
 def run_project_task(task_id):
-    return Project(task_id).run()
+    return Project(task_id, celery_task_id=run_project_task.request.id).run()

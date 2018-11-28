@@ -12,7 +12,7 @@ from ops.models import (Inventory, AnsiblePlayBook, AvailableModule,
                         AnsiblePlayBookTaskSchedule, AnsiblePlayBookTaskLog,
                         AnsibleScriptTaskLog, ProjectTaskLog, KDCServer,
                         Principal, Acl, AclPermission, HiveDataBase,
-                        CDHCluster, CMServer, YarnPool, HadoopClient)
+                        CDHCluster, CMServer, YarnPool, ClusterClient)
 
 
 class InventoryAdmin(admin.ModelAdmin):
@@ -225,24 +225,27 @@ class AnsibleScriptTaskLogAdmin(admin.ModelAdmin):
 
     model = AnsibleScriptTaskLog
     search_fields = ('log_id', )
-    list_display = ('log_id', 'task', 'succeed')
-    readonly_fields = ('log_id', 'task', 'succeed', 'task_log')
+    list_display = ('log_id', 'task', 'celery_task_id', 'succeed')
+    readonly_fields = ('log_id', 'task', 'succeed', 'task_log',
+                       'celery_task_id')
 
 
 class AnsiblePlayBookTaskLogAdmin(admin.ModelAdmin):
 
     model = AnsiblePlayBookTaskLog
     search_fields = ('log_id', )
-    list_display = ('log_id', 'task', 'succeed')
-    readonly_fields = ('log_id', 'task', 'succeed', 'task_log')
+    list_display = ('log_id', 'task', 'celery_task_id', 'succeed')
+    readonly_fields = ('log_id', 'task', 'succeed', 'task_log',
+                       'celery_task_id')
 
 
 class ProjectTaskLogAdmin(admin.ModelAdmin):
 
     model = ProjectTaskLog
     search_fields = ('log_id', )
-    list_display = ('log_id', 'task', 'succeed')
-    readonly_fields = ('log_id', 'task', 'succeed', 'task_log')
+    list_display = ('log_id', 'task', 'celery_task_id', 'succeed')
+    readonly_fields = ('log_id', 'task', 'succeed', 'task_log',
+                       'celery_task_id')
 
 
 class KDCServerAdmin(admin.ModelAdmin):
@@ -314,9 +317,9 @@ class CDHClusterAdmin(admin.ModelAdmin):
     readonly_fields = ('last_modified_time', )
 
 
-class HadoopClientAdmin(admin.ModelAdmin):
+class ClusterClientAdmin(admin.ModelAdmin):
 
-    model = HadoopClient
+    model = ClusterClient
     readonly_fields = ('created_time', 'owner')
 
 
@@ -350,4 +353,4 @@ admin.site.register(CMServer, CMServerAdmin)
 admin.site.register(HiveDataBase, HiveDataBaseAdmin)
 admin.site.register(YarnPool, YarnPoolAdmin)
 admin.site.register(CDHCluster, CDHClusterAdmin)
-admin.site.register(HadoopClient, HadoopClientAdmin)
+admin.site.register(ClusterClient, ClusterClientAdmin)

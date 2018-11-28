@@ -82,8 +82,10 @@ class ProjectTask(models.Model):
 class ProjectTaskLog(models.Model):
 
     log_id = models.UUIDField(_('log id'), default=uuid.uuid4, unique=True)
+    celery_task_id = models.CharField(_('celery task id'), max_length=200)
     task = models.ForeignKey('ProjectTask', verbose_name=_('task'),
                              on_delete=models.SET_NULL, null=True)
+    cron_task = models.BooleanField(_('crontab task'), default=True)
     succeed = models.BooleanField(_('task status'), default=True)
     task_log = models.TextField(_('task log'), blank=True, null=True)
 

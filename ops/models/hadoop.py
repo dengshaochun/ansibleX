@@ -163,8 +163,16 @@ class CDHCluster(models.Model):
         return self.display_name
 
 
-class HadoopClient(models.Model):
+class ClusterClient(models.Model):
+    CLIENT_TYPES = (
+        ('Hadoop', 'Hadoop'),
+        ('Hive', 'Hive'),
+        ('HBase', 'HBase'),
+        ('Spark', 'Spark'),
+    )
 
+    client_type = models.CharField(_('client type'), max_length=10,
+                                   choices=CLIENT_TYPES)
     host = models.ForeignKey(Asset, verbose_name=_('host'),
                              related_name='host_hadoop_clients',
                              on_delete=models.CASCADE)
@@ -177,4 +185,5 @@ class HadoopClient(models.Model):
                               on_delete=models.SET_NULL, null=True)
 
     def __str__(self):
-        return '{0} {1}'.format(self.cluster.display_name, self.host.ip)
+        return '{0} {1} {2}'.format(self.cluster.display_name,
+                                    self.client_type, self.host.ip)

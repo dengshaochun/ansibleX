@@ -378,15 +378,3 @@ class AnsibleLock(models.Model):
 
     def __str__(self):
         return self.lock_object_id
-
-
-class DefaultActionPlaybook(models.Model):
-
-    name = models.CharField(_('action name'), unique=True, max_length=100)
-    playbook = models.ForeignKey('AnsiblePlayBook',
-                                 verbose_name=_('ansible playbook'),
-                                 on_delete=models.SET_NULL, null=True)
-    created_time = models.DateTimeField(_('create time'), auto_now_add=True)
-
-    def __str__(self):
-        return self.name

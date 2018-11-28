@@ -8,6 +8,7 @@
 
 
 import os
+import logging
 from django.db import models
 from django.contrib.auth.models import User
 from django.conf import settings
@@ -15,8 +16,10 @@ from django.utils.translation import ugettext_lazy as _
 from django.core.exceptions import ValidationError
 
 from assets.models import Asset
-
 from utils.encrypt import PrpCrypt
+
+
+logger = logging.getLogger(__name__)
 
 
 class KDCServer(models.Model):
@@ -82,13 +85,20 @@ class Principal(models.Model):
 
     @property
     def principal_info(self):
-        from utils.kadmin_api import Kadmin
-        admin = Kadmin(self.kdc.admin_principal, self.kdc.admin_password,
-                       self.kdc.admin_keytab, self.kdc.abs_config_path,
-                       self.kdc.realms)
-        principal = admin.get_principal_info(self.user.username)
-        del admin
-        return principal
+        admin = None
+        try:
+            from utils.kadmin_api import Kadmin
+            admin = Kadmin(self.kdc.admin_principal, self.kdc.admin_password,
+                           self.kdc.admin_keytab, self.kdc.abs_config_path,
+                           self.kdc.realms)
+            principal = admin.get_principal_info(self.user.username)
+            return principal
+        except Exception as e:
+            logger.exception(e)
+            return None
+        finally:
+            if admin:
+                del admin
 
     def __str__(self):
         return '{0} {1}'.format(self.kdc.name, self.user.username)
