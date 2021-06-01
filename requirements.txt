@@ -70,7 +70,7 @@ smmap2==2.0.5
 traitlets==4.3.2
 Twisted==18.7.0
 txaio==18.8.1
-urllib3==1.23
+urllib3==1.26.5
 vine==1.1.4
 wcwidth==0.1.7
 zope.interface==4.5.0
