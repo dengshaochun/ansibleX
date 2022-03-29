@@ -46,7 +46,7 @@ MarkupSafe==1.0
 monotonic==1.5
 msgpack==0.5.6
 Naked==0.1.31
-paramiko==2.4.2
+paramiko==2.10.1
 parso==0.3.1
 pexpect==4.6.0
 pickleshare==0.7.4
